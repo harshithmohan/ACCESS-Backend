@@ -9,9 +9,9 @@ import sqlalchemy
 cogcli='7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
 application = Flask(__name__)
-application.config['SQLALCHEMY_DATABASE_URI']='postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
+application.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
 application.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-cors = CORS(application,resources={r'/*':{'origins':'*'}})
+cors = CORS(application, resources = {r'/*':{'origins':'*'}})
 db.init_app(application)
 
 @application.route('/', methods = ['GET'])
@@ -121,9 +121,29 @@ def getLocks():
         print(lcks)
         for lock in lcks:
             dct = {}
+            dct['lockId'] = lock.lockid
             dct['alias'] = lock.alias
             dct['address'] = lock.address
             dct['favourite'] = lock.favourite
+            lockDict[lock.lockid] = dct
+        return lockDict
+    except Exception as e:
+        return str(e)
+
+@application.route('/getOtherLocks', methods = ['GET','POST'])
+def getOtherLocks():
+    try:
+        content = json.loads(request.data)
+        lockDict = {}
+        lcks = Users.query.get(content['username']).acl
+        print(lcks)
+        for lock in lcks:
+            dct = {}
+            dct['lockId'] = lock.lockid
+            dct['expiry'] = lock.expiry
+            lockDetails = Locks.query.get(lock.lockid)
+            dct['alias'] = lockDetails.alias
+            dct['address'] = lockDetails.address
             lockDict[lock.lockid] = dct
         return lockDict
     except Exception as e:
