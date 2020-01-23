@@ -56,7 +56,7 @@ class Logs(db.Model):
     serial = db.Column(db.Integer, primary_key = True)
     lockid = db.Column(db.Text, db.ForeignKey('locks.lockid'))
     username = db.Column(db.Text, db.ForeignKey('users.username'))
-    time = db.Column(postgresql.TIMESTAMP, default = datetime.now(timezone('Asia/Kolkata')))
+    time = db.Column(postgresql.TIMESTAMP, default = datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'))
     operation = db.Column(db.Text, nullable = False)
     user_type = db.Column(db.Text, nullable = False)
 
