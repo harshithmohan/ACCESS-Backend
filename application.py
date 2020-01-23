@@ -1,5 +1,6 @@
 #!/usr/bin/python
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import boto3
 import json
 from flask_sqlalchemy import SQLAlchemy
@@ -12,6 +13,7 @@ cog = boto3.client('cognito-idp', region_name='ap-south-1')
 application = Flask(__name__)
 application.config['SQLALCHEMY_DATABASE_URI']='postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
 application.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+cors = CORS(application,resources={r"/*":{"origins":"*"}})
 db=SQLAlchemy(application)
 
 class users(db.Model):
