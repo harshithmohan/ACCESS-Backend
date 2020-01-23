@@ -71,18 +71,6 @@ class log(db.Model):
 def hello():
     return "HELLO. FLASK IS WORKING!"
 
-@application.route('/testsql',methods=["GET","POST"])
-def testsql():
-    print('in func')
-    try:
-        print('in try')
-        us=users(username='osa',name='Osa',phone='9566425387',lockids=[],appids=[])
-        db.session.add(us)
-        db.session.commit()
-        return "true"
-    except Exception as e:
-        return str(e)
-
 @application.route('/addLock',methods=["GET","POST"])   
 def add_locks():
     try:
@@ -172,24 +160,22 @@ def checkPermission():
                 return "false"
     except Exception as e:
         return str(e)
+
 @application.route('/getLocks',methods=["GET","POST"])
 def getLocks():
     try:
-        content=json.loads(request.data)
-        lockarr=[]
+        content = json.loads(request.data)
+        lockDict = {}
         resp=users.query.get(content['username'])
-        # print(resp.lockids)
         lcks=resp.lockids
         for lock in lcks:
             dct={}
-            print(lock)
             details=locks.query.get(lock)
-            dct['lockid']=details.lockid
             dct['alias']=details.alias
             dct['address']=details.address
             dct['favourite']=details.favourite
-            lockarr.append(dct)
-        return json.dumps(lockarr)
+            lockDict[lock] = dct
+        return lockDict
     except Exception as e:
         return str(e)
                 
