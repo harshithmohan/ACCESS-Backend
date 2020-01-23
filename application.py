@@ -31,10 +31,12 @@ class locks(db.Model):
     lockid=db.Column(db.Text, primary_key=True)
     alias=db.Column(db.Text,nullable=False)
     address=db.Column(db.Text, nullable=False)
-    def __init__(self,lockid,alias,address):
+    favourite=db.Column(db.Boolean,nullable=False)
+    def __init__(self,lockid,alias,address,favourite):
         self.lockid=lockid
         self.alias=alias
-        self.address=address 
+        self.address=address
+        self.favourite=favourite 
 
 class acl(db.Model):
     lockid=db.Column(db.Numeric, db.ForeignKey('users.username'),primary_key=True)
@@ -84,6 +86,10 @@ def add_locks():
     try:
         content=json.loads(request.data)
         lock=locks(content['lockid'],content['alias'],content['address'])
+        resp=users.query.get(content['username'])
+        new_arr=resp.lockids.copy()
+        new_arr.append(content['lockid'])
+        resp.lockids=new_arr
         db.session.add(lock)
         db.session.commit()
         return "true"
@@ -164,6 +170,28 @@ def checkPermission():
                 return "false"
     except Exception as e:
         return str(e)
+@application.route('/getLocks',methods=["GET","POST"])
+def getLocks():
+    try:
+        content=json.loads(request.data)
+        lockarr=[]
+        resp=users.query.get(content['username'])
+        # print(resp.lockids)
+        lcks=resp.lockids
+        for lock in lcks:
+            dct={}
+            print(lock)
+            details=locks.query.get(lock)
+            dct['lockid']=details.lockid
+            dct['alias']=details.alias
+            dct['address']=details.address
+            dct['favourite']=details.favourite
+            lockarr.append(dct)
+        return json.dumps(lockarr)
+    except Exception as e:
+        return str(e)
+                
+
 
 @application.route('/login',methods=["GET","POST"])
 def login():
@@ -215,5 +243,4 @@ def signup():
 
 
 if __name__ == "__main__":
-    application.debug = True
-    application.run()
+    application.run(debug=True)
