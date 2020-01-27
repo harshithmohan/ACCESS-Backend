@@ -39,6 +39,24 @@ def addLock():
     except Exception as e:
         return str(e)  
 
+
+@application.route('/checkPermission',methods = ['GET','POST'])
+def checkPermission():
+    try:
+        content = json.loads(request.data)
+        if Locks.query.get(content['lockid']).username == content['username']:
+            content['user_type'] = 'owner'
+        else:
+            ac = Acl.query.filter_by(lockid = content['lockid']).filter_by(username = content['username']).one()
+            content['user_type'] = 'guest'
+        content['operation'] = 'lock'
+        addLog(content)
+        return 'true'
+    except sqlalchemy.orm.exc.NoResultFound:
+        return 'false'
+    except Exception as e:
+        return str(e)
+
 @application.route('/deleteLock',methods = ['GET','POST'])
 def deleteLock():
     try:
@@ -61,20 +79,6 @@ def editLock():
     except Exception as e:
         return str(e)
 
-@application.route('/toggleFavourite',methods = ['GET','POST'])
-def toggleFavourite():
-    try:
-        content = json.loads(request.data)
-        lock = Locks.query.get(content['lockid'])
-        if content['choice'] == 'fav':
-            lock.favourite = 'true'
-        else:
-            lock.favourite = 'false'
-        db.session.commit()
-        return 'true'
-    except Exception as e:
-        return str(e)
-
 @application.route('/grantPermission', methods = ['GET','POST'])
 def grantPermission():
     try:
@@ -83,23 +87,6 @@ def grantPermission():
         db.session.add(rec)
         db.session.commit()
         return 'true'
-    except Exception as e:
-        return str(e)
-
-@application.route('/checkPermission',methods = ['GET','POST'])
-def checkPermission():
-    try:
-        content = json.loads(request.data)
-        if Locks.query.get(content['lockid']).username == content['username']:
-            content['user_type'] = 'owner'
-        else:
-            ac = Acl.query.filter_by(lockid = content['lockid']).filter_by(username = content['username']).one()
-            content['user_type'] = 'guest'
-        content['operation'] = 'lock'
-        addLog(content)
-        return 'true'
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
     except Exception as e:
         return str(e)
 
@@ -163,7 +150,7 @@ def login():
         )
         resp = Users.query.get(content['username'])
         new_arr = resp.appids.copy()
-        new_arr.append(content['appid'])
+        new_arr.append(content['appId'])
         resp.appids = new_arr
         db.session.commit()
         return 'true'
@@ -196,6 +183,19 @@ def signup():
         print('Exception: ' +str(e))
         return str(e)
 
+@application.route('/toggleFavourite',methods = ['GET','POST'])
+def toggleFavourite():
+    try:
+        content = json.loads(request.data)
+        lock = Locks.query.get(content['lockid'])
+        if content['choice'] == 'fav':
+            lock.favourite = 'true'
+        else:
+            lock.favourite = 'false'
+        db.session.commit()
+        return 'true'
+    except Exception as e:
+        return str(e)
 
 
 if __name__ == '__main__':
