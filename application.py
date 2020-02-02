@@ -314,9 +314,9 @@ def toggleFavourite():
         content = json.loads(request.data)
         lock = Locks.query.get(content['lockId'])
         if content['choice'] == 'fav':
-            lock.favourite = 'true'
+            lock.favourite = True
         else:
-            lock.favourite = 'false'
+            lock.favourite = False
         db.session.commit()
         return 'true'
     except sqlalchemy.orm.exc.NoResultFound:
