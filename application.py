@@ -254,14 +254,20 @@ def lockOperations():
         addLog(content)
         users = []
         lock = Locks.query.get(content['lockId'])
-        users.append(lock.username)
+        owner = Users.query.get(content['username'])
+        appIds = owner.appIds.copy()
+        if content['username'] == lock.username:
+            message_body = "You have " + content['operation'] + "ed " + lock.alias  
+            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        else:
+            users.append(lock.username)
         for rec in lock.acl:
             if not rec.userType == 'guest':
                 users.append(rec.username)
         for user in users:
             row = Users.query.get(user)
             appIds = row.appIds.copy()
-            message_body = "Your lock in "+lock.alias+" has been "+"ed by "+content['username']  
+            message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
             push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
         print(response)
         return str(response)
