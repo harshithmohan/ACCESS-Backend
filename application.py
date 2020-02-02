@@ -8,7 +8,7 @@ from models import *
 import sqlalchemy
 cogcli='7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
-iotcore=boto3.client('iot-data')
+iotcore=boto3.client('iot-data', region_name='ap-south-1')
 application = Flask(__name__)
 application.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
 application.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
