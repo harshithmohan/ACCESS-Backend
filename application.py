@@ -68,7 +68,7 @@ def changePassword():
     except Exception as e:
         return str(e)
 
-@application.route('/checkPermission',methods = ['GET','POST'])
+@application.route('/checkPermission', methods = ['GET','POST'])
 def checkPermission():
     try:
         content = json.loads(request.data)
@@ -84,6 +84,25 @@ def checkPermission():
         return 'false'
     except Exception as e:
         return str(e)
+
+@application.route('/checkToken', methods = ['GET', 'POST'])
+def checkToken():
+    try:
+        content = json.loads(request.data)
+        cog.get_user(AccessToken = content['accessToken'])
+    except cog.exceptions.NotAuthorizedException:
+        try:
+            auth = cog.initiate_auth(
+                AuthFlow = 'REFRESH_TOKEN_AUTH',
+                AuthParameters = {
+                    'REFRESH_TOKEN': content['refreshToken']
+                },
+                ClientId = cogcli
+            )
+            return auth['AuthenticationResult']
+        except Exception:
+            return 'false'
+    return 'true'
 
 @application.route('/confirmForgotPassword', methods= ['GET', 'POST'])
 def confirmForgotPassword():
