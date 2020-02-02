@@ -280,7 +280,7 @@ def login():
             },
             ClientId = cogcli
         )
-        retval = auth["AuthenticationResult"]["AccessToken"]
+        retval = auth["AuthenticationResult"]
         resp = Users.query.get(content['username'])
         if not content['appId'] in resp.appIds:
             new_arr = resp.appIds.copy()
