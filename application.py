@@ -184,7 +184,7 @@ def viewLogs():
             indict = {}
             indict['lockId'] = log.lockId
             indict['username'] = log.username
-            indict['time'] = datetime.strftime(log.time)
+            indict['time'] = datetime.strftime(log.time, "%Y-%m-%d %H:%M:%S")
             indict['userType'] = log.userType
             indict['operation'] = log.operation
             dct.append(indict)
@@ -238,8 +238,8 @@ def forgotPassword():
 def lockOperations():
     try:
         content = json.loads(request.data)
-        pl = {'lockId' : content['lockId'], operation : content['opration']}
-        response = client.publish(topic = 'string', qos = 123, payload = pl)
+        pl = {'lockId' : content['lockId'], 'operation' : content['operation']}
+        response = iotcore.publish(topic = 'lock', qos = 1, payload = json.dumps(pl))
         addLog(content)
         return str(response)
     except Exception as e:

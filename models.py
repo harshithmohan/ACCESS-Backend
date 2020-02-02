@@ -58,10 +58,10 @@ class Logs(db.Model):
     username = db.Column(db.Text, db.ForeignKey('users.username'))
     time = db.Column(postgresql.TIMESTAMP, default = datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'))
     operation = db.Column(db.Text, nullable = False)
-    user_type = db.Column(db.Text, nullable = False)
+    userType = db.Column(db.Text, nullable = False)
 
-    def __init__(self, lockId, username, operation, user_type):
+    def __init__(self, lockId, username, operation, userType):
         self.lockId = lockId
         self.username = username
         self.operation = operation
-        self.user_type = user_type
+        self.userType = userType
