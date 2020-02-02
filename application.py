@@ -6,6 +6,7 @@ import json
 from pyfcm import FCMNotification
 from models import *
 import sqlalchemy
+from sqlalchemy import or_
 cogcli='7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
 iotcore=boto3.client('iot-data', region_name='ap-south-1')
@@ -170,16 +171,20 @@ def viewLogs():
     try:
         content = json.loads(request.data)
         dct = []
+        locks = []
+        resp = Users.query.get(content['username']).locks 
+        for row in resp:
+            locks.append(row.lockId)
         if content['choice'] == 'all':
-            logs = Logs.query.filter_by(username = content['username']).order_by(Logs.time.desc()).all()
+            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).order_by(Logs.time.desc()).all()
         elif content['choice'] == 'lockId':
-            logs = Logs.query.filter_by(username = content['username']).filter_by(lockId = content['lockId']).order_by(Logs.time.desc()).all()
+            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(lockId = content['lockId']).order_by(Logs.time.desc()).all()
         elif content['choice'] == 'operation':
-            logs = Logs.query.filter_by(username = content['username']).filter_by(operation = content['operation']).order_by(Logs.time.desc()).all()
+            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(operation = content['operation']).order_by(Logs.time.desc()).all()
         elif content['choice'] == 'userType':
-            logs = Logs.query.filter_by(username = content['username']).filter_by(userType = content['userType']).order_by(Logs.time.desc()).all()    
+            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(userType = content['userType']).order_by(Logs.time.desc()).all()    
         elif content['choice'] == 'time':
-            logs = Logs.query.filter_by(username = content['username']).filter(time.between(datetime.strptime(content['start'],"%Y-%m-%d %H:%M:%S"), datetime.strptime(content['end'],"%Y-%m-%d %H:%M:%S"))).order_by(Logs.time.desc()).all()
+            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter(time.between(datetime.strptime(content['start'],"%Y-%m-%d %H:%M:%S"), datetime.strptime(content['end'],"%Y-%m-%d %H:%M:%S"))).order_by(Logs.time.desc()).all()
         for log in logs:
             indict = {}
             indict['lockId'] = log.lockId
@@ -194,19 +199,22 @@ def viewLogs():
     except Exception as e:
         return str(e)
 
-@application.route('/getUsers', methods = ['GET', 'POST'])
+@application.route('/getGuests', methods = ['GET', 'POST'])
 def getUsers():
     try:
         content = json.loads(request.data)
-        q=db.session.query(Users).filter_by(lockId = content['lockId']).join(Locks).join(Acl).all()
+        guests = Locks.query.get(content['lockId']).acl
+        print(guests)
         dct={}
-        for row in q:
+        for guest in guests:
             indict = {}
-            indcit['name'] = row.name
-            indict['userType'] = row.userType
-            indict['expiry'] = row.expiry
-            dct['username'] = row.username
-        return dct
+            username = guest.username
+            user = Users.query.get(guest.username)
+            indict['name'] = user.name
+            indict['userType'] = guest.userType
+            indict['expiry'] = datetime.strftime(guest.expiry, "%Y-%m-%d %H:%M:%S")
+            dct[username] = indict
+        return str(dct)
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
@@ -238,9 +246,24 @@ def forgotPassword():
 def lockOperations():
     try:
         content = json.loads(request.data)
+        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
+        message_title = "ACCESS"
+        message_icon = 'notification_icon' 
         pl = {'lockId' : content['lockId'], 'operation' : content['operation']}
         response = iotcore.publish(topic = 'lock', qos = 1, payload = json.dumps(pl))
         addLog(content)
+        users = []
+        lock = Locks.query.get(content['lockId'])
+        users.append(lock.username)
+        for rec in lock.acl:
+            if not rec.userType == 'guest':
+                users.append(rec.username)
+        for user in users:
+            row = Users.query.get(user)
+            appIds = row.appIds.copy()
+            message_body = "Your lock in "+lock.alias+" has been "+"ed by "+content['username']  
+            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        print(response)
         return str(response)
     except Exception as e:
         return str(e)
@@ -259,7 +282,7 @@ def login():
         )
         retval = auth["AuthenticationResult"]["AccessToken"]
         resp = Users.query.get(content['username'])
-        if not content['lockId'] in resp.appIds:
+        if not content['appId'] in resp.appIds:
             new_arr = resp.appIds.copy()
             new_arr.append(content['appId'])
             resp.appIds = new_arr
