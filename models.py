@@ -43,12 +43,13 @@ class Acl(db.Model):
 
     lockId = db.Column(db.Text, db.ForeignKey('locks.lockId'), primary_key = True)
     username = db.Column(db.Text, db.ForeignKey('users.username'), primary_key = True)
-    expiry = db.Column(postgresql.TIMESTAMP, nullable = False)
-    userType = db.Column(db.Text)
+    expiry = db.Column(postgresql.TIMESTAMP)
+    userType = db.Column(db.Text, nullable = False)
 
-    def __init__(self, lockId, username, expiry):
+    def __init__(self, lockId, username, userType, expiry):
         self.lockId = lockId
         self.username = username
+        self.userType = userType
         self.expiry = expiry
 
 class Logs(db.Model):

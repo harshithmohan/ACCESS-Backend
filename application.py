@@ -243,10 +243,16 @@ def getUsers():
 def grantPermission():
     try:
         content = json.loads(request.data)
-        rec = Acl(content['lockId'], content['username'], content['expiry'])
+        rec = Acl(content['lockId'], content['username'], content['userType'], content['expiry'])
         db.session.add(rec)
         db.session.commit()
         return 'true'
+    except sqlalchemy.exc.IntegrityError as e:
+        if ('Key (username)' in str(e)):
+            return 'User does not exist!'
+        elif ('already exists' in str(e)):
+            return 'Permission already granted!'
+        return str(e)
     except Exception as e:
         return str(e)
 
