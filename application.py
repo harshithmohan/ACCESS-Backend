@@ -273,17 +273,18 @@ def lockOperations():
         content = json.loads(request.data)
         push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
         message_title = "ACCESS"
-        message_icon = 'notification_icon' 
-        pl = {'lockId' : content['lockId'], 'operation' : content['operation']}
-        response = iotcore.publish(topic = 'lock', qos = 1, payload = json.dumps(pl))
+        message_icon = 'notification_icon'
+        if content['operation'] not in ['lock', 'unlock']:
+            return 'Invalid operation'
+        pl = {'operation' : content['operation']}
+        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         addLog(content)
         users = []
         lock = Locks.query.get(content['lockId'])
         owner = Users.query.get(content['username'])
-        appIds = owner.appIds.copy()
         if content['username'] == lock.username:
-            message_body = "You have " + content['operation'] + "ed " + lock.alias  
-            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+            message_body = "You have " + content['operation'] + "ed " + lock.alias
+            push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
         else:
             users.append(lock.username)
         for rec in lock.acl:
@@ -291,9 +292,8 @@ def lockOperations():
                 users.append(rec.username)
         for user in users:
             row = Users.query.get(user)
-            appIds = row.appIds.copy()
             message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
-            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
         print(response)
         return str(response)
     except Exception as e:
