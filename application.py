@@ -332,7 +332,7 @@ def login():
 def logout():
     try:
         content = json.loads(request.data)
-        cog.global_sign_out(AccessToken = content['AccessToken'])
+        cog.global_sign_out(AccessToken = content['accessToken'])
         resp = Users.query.get(content['username'])
         new_arr = resp.appIds.copy()
         new_arr.remove(content['appId'])
