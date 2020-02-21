@@ -5,22 +5,19 @@ from pytz import timezone
 
 db = SQLAlchemy()
 
-class Users(db.Model):
-    __tablename__ = 'users'
+class Acl(db.Model):
+    __tablename__ = 'acl'
 
-    username = db.Column(db.Text, primary_key = True)
-    name = db.Column(db.Text, nullable = False)
-    phone = db.Column(db.Numeric, nullable = False)
-    appIds = db.Column(postgresql.ARRAY(db.Text))
+    lockId = db.Column(db.Text, db.ForeignKey('locks.lockId'), primary_key = True)
+    username = db.Column(db.Text, db.ForeignKey('users.username'), primary_key = True)
+    expiry = db.Column(postgresql.TIMESTAMP)
+    userType = db.Column(db.Text, nullable = False)
 
-    acl = db.relationship('Acl')
-    logs = db.relationship('Logs')
-    locks = db.relationship('Locks')
-
-    def __init__(self, username, name, phone):
+    def __init__(self, lockId, username, userType, expiry):
+        self.lockId = lockId
         self.username = username
-        self.name = name 
-        self.phone = phone
+        self.userType = userType
+        self.expiry = expiry
 
 class Locks(db.Model):
     __tablename__ = 'locks'
@@ -38,20 +35,6 @@ class Locks(db.Model):
         self.lockId = lockId
         self.username = username
 
-class Acl(db.Model):
-    __tablename__ = 'acl'
-
-    lockId = db.Column(db.Text, db.ForeignKey('locks.lockId'), primary_key = True)
-    username = db.Column(db.Text, db.ForeignKey('users.username'), primary_key = True)
-    expiry = db.Column(postgresql.TIMESTAMP)
-    userType = db.Column(db.Text, nullable = False)
-
-    def __init__(self, lockId, username, userType, expiry):
-        self.lockId = lockId
-        self.username = username
-        self.userType = userType
-        self.expiry = expiry
-
 class Logs(db.Model):
     __tablename__ = 'logs'
 
@@ -67,3 +50,20 @@ class Logs(db.Model):
         self.username = username
         self.operation = operation
         self.userType = userType
+
+class Users(db.Model):
+    __tablename__ = 'users'
+
+    username = db.Column(db.Text, primary_key = True)
+    name = db.Column(db.Text, nullable = False)
+    phone = db.Column(db.Numeric, nullable = False)
+    appIds = db.Column(postgresql.ARRAY(db.Text))
+
+    acl = db.relationship('Acl')
+    logs = db.relationship('Logs')
+    locks = db.relationship('Locks')
+
+    def __init__(self, username, name, phone):
+        self.username = username
+        self.name = name 
+        self.phone = phone
