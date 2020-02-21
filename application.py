@@ -346,13 +346,13 @@ def logout():
 def signup():
     try:
         content = json.loads(request.data)
-        cog.sign_up(
-                    ClientId  = cogcli,
-                    Username = content['username'],
-                    Password = content['password'],
-                    UserAttributes = [{'Name':'email','Value':content['email']}]
-                )
         user = Users(content['username'],content['name'],content['phone'])
+        cog.sign_up(
+            ClientId  = cogcli,
+            Username = content['username'],
+            Password = content['password'],
+            UserAttributes = [{'Name':'email','Value':content['email']}]
+        )
         db.session.add(user)
         db.session.commit()
         return 'true'
