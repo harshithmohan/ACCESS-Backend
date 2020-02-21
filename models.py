@@ -57,7 +57,7 @@ class Users(db.Model):
     username = db.Column(db.Text, primary_key = True)
     name = db.Column(db.Text, nullable = False)
     phone = db.Column(db.Numeric, nullable = False)
-    appIds = db.Column(postgresql.ARRAY(db.Text))
+    appIds = db.Column(postgresql.ARRAY(db.Text), nullable = False)
 
     acl = db.relationship('Acl')
     logs = db.relationship('Logs')
@@ -67,3 +67,4 @@ class Users(db.Model):
         self.username = username
         self.name = name 
         self.phone = phone
+        self.appIds = {}
