@@ -52,7 +52,15 @@ def addLog(content):
         return 'true'
     except Exception as e:
         return str(e)
-
+@application.route('/ble',methods=['GET', 'POST'])
+def ble():
+    try:
+        content = json.loads(request.data)
+        pl = {'operation' : ble}
+        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
+        return 'true'
+    except Exception as e:
+        return str(e)
 @application.route('/changePassword', methods = ['GET', 'POST'])
 def changePassword():
     try:
