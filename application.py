@@ -56,7 +56,7 @@ def addLog(content):
 def ble():
     try:
         content = json.loads(request.data)
-        pl = {'operation' : ble}
+        pl = {'operation' : 'ble'}
         response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         return 'true'
     except Exception as e:
