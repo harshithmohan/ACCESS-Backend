@@ -213,7 +213,7 @@ def getLogs():
             indict['userType'] = log.userType
             indict['operation'] = log.operation
             dct.append(indict)
-        return str(dct)
+        return { 'logs': dct }
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
