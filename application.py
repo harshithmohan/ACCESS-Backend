@@ -202,16 +202,7 @@ def getLogs():
         resp = Users.query.get(content['username']).locks 
         for row in resp:
             locks.append(row.lockId)
-        if content['choice'] == 'all':
-            logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).order_by(Logs.time.desc()).all()
-        # elif content['choice'] == 'lockId':
-        #     logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(lockId = content['lockId']).order_by(Logs.time.desc()).all()
-        # elif content['choice'] == 'operation':
-        #     logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(operation = content['operation']).order_by(Logs.time.desc()).all()
-        # elif content['choice'] == 'userType':
-        #     logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter_by(userType = content['userType']).order_by(Logs.time.desc()).all()    
-        # elif content['choice'] == 'time':
-        #     logs = Logs.query.filter(or_(Logs.lockId.in_(locks), Logs.username == content['username'])).filter(time.between(datetime.strptime(content['start'],"%Y-%m-%d %H:%M:%S"), datetime.strptime(content['end'],"%Y-%m-%d %H:%M:%S"))).order_by(Logs.time.desc()).all()
+        logs = Logs.query.filter(Logs.lockId.in_(locks)).order_by(Logs.time.desc()).all()
         for log in logs:
             indict = {}
             lockId = log.lockId
