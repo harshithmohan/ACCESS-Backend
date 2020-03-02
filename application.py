@@ -152,13 +152,15 @@ def editLock():
     except Exception as e:
         return str(e)
 
-@application.route('/editPermissions', methods = ['GET', 'POST'])
-def editPermissions():
+@application.route('/editPermission', methods = ['GET', 'POST'])
+def editPermission():
     try:
         content = json.loads(request.data)
         perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
         perm.expiry = content['expiry']
         perm.userType = content['userType']
+        if perm.userType == 'Owner':
+            perm.expiry = None
         db.session.commit()
         return 'true'
     except Exception as e:
@@ -240,6 +242,7 @@ def getLogs():
             indict = {}
             lockId = log.lockId
             lockAlias = Locks.query.get(lockId).alias
+            indict['lockId'] = log.lockId
             indict['lock'] = lockAlias
             indict['username'] = log.username
             indict['time'] = datetime.strftime(log.time, "%Y-%m-%d %H:%M:%S")
@@ -263,11 +266,14 @@ def getPermissions():
             indict['userType'] = row.userType
             indict['username'] = row.username
             if row.expiry is None:
-                indict['expiry'] = ''
+                indict['expiry'] = None
             else:
                 indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
+            resp = Users.query.get(row.username)
+            indict['name'] = resp.name
             arr.append(indict)
-        return json.dumps({"details" : arr})
+        resp = Locks.query.get(content['lockId'])
+        return json.dumps({ "details" : arr, "alias": resp.alias })
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
@@ -376,8 +382,8 @@ def logout():
     except Exception as e:
         return str(e)
 
-@application.route('revokePermissions', methods = ['GET', 'POST'])
-def revokePermissions():
+@application.route('/revokePermission', methods = ['GET', 'POST'])
+def revokePermission():
     try:
         content =  json.loads(request.data)
         perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
