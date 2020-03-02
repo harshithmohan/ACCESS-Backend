@@ -376,6 +376,17 @@ def logout():
     except Exception as e:
         return str(e)
 
+@application.route('revokePermissions', methods = ['GET', 'POST'])
+def revokePermissions():
+    try:
+        content =  json.loads(request.data)
+        perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
+        db.session.delete(perm)
+        db.session.commit()
+        return 'true'
+    except Exception as e:
+        return str(e)
+        
 @application.route('/signup',methods = ['GET','POST'])
 def signup():
     try:
