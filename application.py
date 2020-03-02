@@ -152,6 +152,27 @@ def editLock():
     except Exception as e:
         return str(e)
 
+@application.route('/getGuests', methods = ['GET', 'POST'])
+def getUsers():
+    try:
+        content = json.loads(request.data)
+        guests = Locks.query.get(content['lockId']).acl
+        print(guests)
+        dct={}
+        for guest in guests:
+            indict = {}
+            username = guest.username
+            user = Users.query.get(guest.username)
+            indict['name'] = user.name
+            indict['userType'] = guest.userType
+            indict['expiry'] = datetime.strftime(guest.expiry, "%Y-%m-%d %H:%M:%S")
+            dct[username] = indict
+        return str(dct)
+    except sqlalchemy.orm.exc.NoResultFound:
+        return 'false'
+    except Exception as e:
+        return str(e)
+
 @application.route('/getLocks', methods = ['GET','POST'])
 def getLocks():
     try:
@@ -219,22 +240,19 @@ def getLogs():
     except Exception as e:
         return str(e)
 
-@application.route('/getGuests', methods = ['GET', 'POST'])
-def getUsers():
+@application.route('/getPermissions', methods = ['GET', 'POST'])
+def getPermissions():
     try:
         content = json.loads(request.data)
-        guests = Locks.query.get(content['lockId']).acl
-        print(guests)
-        dct={}
-        for guest in guests:
+        arr = []
+        resp = Acl.query.filter_by(lockId = content['lockId']).all()
+        for row in resp:
             indict = {}
-            username = guest.username
-            user = Users.query.get(guest.username)
-            indict['name'] = user.name
-            indict['userType'] = guest.userType
-            indict['expiry'] = datetime.strftime(guest.expiry, "%Y-%m-%d %H:%M:%S")
-            dct[username] = indict
-        return str(dct)
+            indict['userType'] = row.userType
+            indict['username'] = row.username
+            indict['expiry'] = datetime.strftime(row.expiry, "%Y-%m-%d %H:%M:%S")
+            arr.append(indict)
+        return json.dumps({"arr" : arr})
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
