@@ -267,7 +267,7 @@ def getPermissions():
             else:
                 indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
             arr.append(indict)
-        return json.dumps({"arr" : arr})
+        return json.dumps({"details" : arr})
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
