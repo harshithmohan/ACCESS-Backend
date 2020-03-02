@@ -152,6 +152,18 @@ def editLock():
     except Exception as e:
         return str(e)
 
+@application.route('/editPermissions', methods = ['GET', 'POST'])
+def editPermissions():
+    try:
+        content = json.loads(request.data)
+        perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
+        perm.expiry = content['expiry']
+        perm.userType = content['userType']
+        db.session.commit()
+        return 'true'
+    except Exception as e:
+        return str(e)
+
 @application.route('/getGuests', methods = ['GET', 'POST'])
 def getUsers():
     try:
@@ -250,7 +262,7 @@ def getPermissions():
             indict = {}
             indict['userType'] = row.userType
             indict['username'] = row.username
-            indict['expiry'] = datetime.strftime(row.expiry, "%Y-%m-%d %H:%M:%S")
+            indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
             arr.append(indict)
         return json.dumps({"arr" : arr})
     except sqlalchemy.orm.exc.NoResultFound:
