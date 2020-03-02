@@ -262,7 +262,10 @@ def getPermissions():
             indict = {}
             indict['userType'] = row.userType
             indict['username'] = row.username
-            indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
+            if row.expiry is None:
+                indict['expiry'] = ''
+            else:
+                indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
             arr.append(indict)
         return json.dumps({"arr" : arr})
     except sqlalchemy.orm.exc.NoResultFound:
