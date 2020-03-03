@@ -33,7 +33,7 @@ def test():
 def addLock():
     try:
         content = json.loads(request.data)
-        lock = Locks(content['lockId'], content['username'], content['webcam'])
+        lock = Locks(content['lockId'], content['username'])
         db.session.add(lock)
         db.session.commit()
         return 'true'

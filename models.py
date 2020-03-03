@@ -32,10 +32,9 @@ class Locks(db.Model):
     acl = db.relationship('Acl')
     logs = db.relationship('Logs')
 
-    def __init__(self, lockId, username, webcam):
+    def __init__(self, lockId, username):
         self.lockId = lockId
         self.username = username
-        self.webcam = webcam
 
 class Logs(db.Model):
     __tablename__ = 'logs'
