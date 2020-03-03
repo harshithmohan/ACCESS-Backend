@@ -33,7 +33,7 @@ def test():
 def addLock():
     try:
         content = json.loads(request.data)
-        lock = Locks(content['lockId'], content['username'])
+        lock = Locks(content['lockId'], content['username'], content['webcam'])
         db.session.add(lock)
         db.session.commit()
         return 'true'
@@ -147,6 +147,7 @@ def editLock():
         lock = Locks.query.get(content['lockId'])
         lock.address = content['address']
         lock.alias = content['alias']
+        lock.webcam = content['webcam']
         db.session.commit()
         return 'true'
     except Exception as e:
@@ -200,6 +201,7 @@ def getLocks():
             dct['alias'] = lock.alias
             dct['address'] = lock.address
             dct['favourite'] = lock.favourite
+            dct['webcam'] = lock.webcam
             lockDict[lock.lockId] = dct
         return lockDict
     except sqlalchemy.orm.exc.NoResultFound:
@@ -428,6 +430,17 @@ def toggleFavourite():
         return 'false'
     except Exception as e:
         return str(e)  
+
+@application.route('/webcam', methods = ['GET', 'POST'])
+def webcam():
+    try:
+        content = json.loads(request.data)
+        pl = {'operation' : 'webcam'}
+        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
+        return 'true'
+    except Exception as e:
+        return str(e)
+
 
 if __name__ == '__main__':
     application.run(debug = True)

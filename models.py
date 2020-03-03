@@ -25,15 +25,17 @@ class Locks(db.Model):
     lockId = db.Column(db.Text, primary_key = True)
     alias = db.Column(db.Text)
     address = db.Column(db.Text)
+    webcam = db.Column(db.Boolean, default = False)
     favourite = db.Column(db.Boolean, default = False)
     username = db.Column(db.Text, db.ForeignKey('users.username'), nullable = False)
 
     acl = db.relationship('Acl')
     logs = db.relationship('Logs')
 
-    def __init__(self, lockId, username):
+    def __init__(self, lockId, username, webcam):
         self.lockId = lockId
         self.username = username
+        self.webcam = webcam
 
 class Logs(db.Model):
     __tablename__ = 'logs'
