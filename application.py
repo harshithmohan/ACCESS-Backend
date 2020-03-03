@@ -431,11 +431,11 @@ def toggleFavourite():
     except Exception as e:
         return str(e)  
 
-@application.route('/webcam', methods = ['GET', 'POST'])
+@application.route('/startWebcam', methods = ['GET', 'POST'])
 def webcam():
     try:
         content = json.loads(request.data)
-        pl = {'operation' : 'webcam'}
+        pl = {'operation' : 'startWebcam'}
         response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         return 'true'
     except Exception as e:
