@@ -179,7 +179,7 @@ def getUsers():
             user = Users.query.get(guest.username)
             indict['name'] = user.name
             indict['userType'] = guest.userType
-            indict['expiry'] = datetime.strftime(guest.expiry, "%Y-%m-%d %H:%M:%S")
+            indict['expiry'] = datetime.strftime(guest.expiry, "%I:%M %P %d-%m-%y")
             dct[username] = indict
         return str(dct)
     except sqlalchemy.orm.exc.NoResultFound:
@@ -245,7 +245,7 @@ def getLogs():
             indict['lockId'] = log.lockId
             indict['lock'] = lockAlias
             indict['username'] = log.username
-            indict['time'] = datetime.strftime(log.time, "%Y-%m-%d %H:%M:%S")
+            indict['time'] = datetime.strftime(log.time, "%I:%M %P %d-%m-%y")
             indict['userType'] = log.userType
             indict['operation'] = log.operation
             dct.append(indict)
@@ -268,7 +268,7 @@ def getPermissions():
             if row.expiry is None:
                 indict['expiry'] = None
             else:
-                indict['expiry'] = datetime.strftime(row.expiry, "%H:%M %d-%m-%y")
+                indict['expiry'] = datetime.strftime(row.expiry, "%I:%M %P %d-%m-%y")
             resp = Users.query.get(row.username)
             indict['name'] = resp.name
             arr.append(indict)
