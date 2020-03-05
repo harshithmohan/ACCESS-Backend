@@ -194,7 +194,6 @@ def getLocks():
         content = json.loads(request.data)
         lockDict = {}
         lcks = Users.query.get(content['username']).locks
-        print(lcks)
         for lock in lcks:
             dct = {}
             dct['lockId'] = lock.lockId
@@ -234,8 +233,9 @@ def getOtherLocks():
 def getLogs():
     try:
         content = json.loads(request.data)
-        dct = []
+        logArr = []
         locks = []
+        users = set()
         resp = Users.query.get(content['username']).locks 
         for row in resp:
             locks.append(row.lockId)
@@ -251,8 +251,9 @@ def getLogs():
             indict['isoTime'] = log.time
             indict['userType'] = log.userType
             indict['operation'] = log.operation
-            dct.append(indict)
-        return { 'logs': dct }
+            users.add(log.username)
+            logArr.append(indict)
+        return { 'logs': logArr, 'users': list(users)}
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
     except Exception as e:
