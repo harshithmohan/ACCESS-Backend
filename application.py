@@ -248,6 +248,7 @@ def getLogs():
             indict['lock'] = lockAlias
             indict['username'] = log.username
             indict['time'] = datetime.strftime(log.time, "%I:%M %P %d-%m-%y")
+            indict['isoTime'] = log.time
             indict['userType'] = log.userType
             indict['operation'] = log.operation
             dct.append(indict)
