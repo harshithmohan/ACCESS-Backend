@@ -352,6 +352,29 @@ def lockOperations():
     except Exception as e:
         return str(e)
 
+@application.route('/nofitfyWebcam', methods = ['GET', 'POST'])
+def notify():
+    try:
+        content = json.loads(request.data)
+        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
+        message_title = "ACCESS"
+        message_icon = 'notification_icon'
+        if content['operation'] not in ['lock', 'unlock']:
+            return 'Invalid operation'
+        pl = {'operation' : content['operation']}
+        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
+        addLog(content)
+        users = []
+        lock = Locks.query.get(content['lockId'])
+        username = lock.username
+        owner = Users.query.get(username)
+        message_body = "Someone wishes to access "+lock.alias  
+        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        print(response)
+        return str(response)
+    except Exception as e:
+        return str(e)
+
 @application.route('/login', methods = ['GET','POST'])
 def login():
     try:
