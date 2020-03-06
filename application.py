@@ -443,6 +443,17 @@ def webcam():
     except Exception as e:
         return str(e)
 
+@application.route('/updateUUID', methods = ['GET', 'POST'])
+def updateUUID():
+    try:
+        content = json.loads(request.data)
+        uuid = content['uuid']
+        lock = Locks.query.get(content['lockId'])
+        lock.bleUUID = uuid
+        db.session.commit()
+        return 'true'
+    except Exception as e:
+        return str(e)
 
 if __name__ == '__main__':
     application.run(debug = True)
