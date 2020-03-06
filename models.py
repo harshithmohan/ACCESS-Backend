@@ -28,7 +28,8 @@ class Locks(db.Model):
     webcam = db.Column(db.Boolean, default = False)
     favourite = db.Column(db.Boolean, default = False)
     username = db.Column(db.Text, db.ForeignKey('users.username'), nullable = False)
-    bleUUID = db.Column(db.Text)
+    bleUUID = db.Column(db.Text),
+    btAddress = db.Column(db.Text)
 
     acl = db.relationship('Acl')
     logs = db.relationship('Logs')
