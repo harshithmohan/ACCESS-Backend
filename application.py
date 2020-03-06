@@ -170,7 +170,7 @@ def editPermission():
 @application.route('/getBluetoothDetails', methods = ['GET', 'POST'])
 def getBluetoothDetails():
     try:
-        content = json.loads(content.data)
+        content = json.loads(request.data)
         lock = Locks.query.get(content['lockId'])
         return str({ 'bleUUID': lock.bleUUID, 'btAddress': lock.btAddress })
     except Exception as e:
