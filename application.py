@@ -359,11 +359,6 @@ def notify():
         push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
         message_title = "ACCESS"
         message_icon = 'notification_icon'
-        if content['operation'] not in ['lock', 'unlock']:
-            return 'Invalid operation'
-        pl = {'operation' : content['operation']}
-        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
-        addLog(content)
         users = []
         lock = Locks.query.get(content['lockId'])
         username = lock.username
