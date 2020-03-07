@@ -352,7 +352,7 @@ def lockOperations():
     except Exception as e:
         return str(e)
 
-@application.route('/nofitfyWebcam', methods = ['GET', 'POST'])
+@application.route('/notifyWebcam', methods = ['GET', 'POST'])
 def notify():
     try:
         content = json.loads(request.data)
