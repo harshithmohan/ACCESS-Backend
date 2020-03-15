@@ -364,7 +364,7 @@ def notify():
         username = lock.username
         owner = Users.query.get(username)
         message_body = "Someone wishes to access "+lock.alias  
-        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        response = push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
         print(response)
         return str(response)
     except Exception as e:
