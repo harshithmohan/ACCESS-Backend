@@ -158,7 +158,7 @@ def editPermission():
     try:
         content = json.loads(request.data)
         perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
-        perm.expiry = content['expiry']
+        perm.expiry = content['expiryActual']
         perm.userType = content['userType']
         if perm.userType == 'Owner':
             perm.expiry = None
@@ -223,15 +223,17 @@ def getOtherLocks():
         content = json.loads(request.data)
         lockDict = {}
         lcks = Users.query.get(content['username']).acl
-        print(lcks)
+        # print(lcks)
         for lock in lcks:
-            dct = {}
-            dct['lockId'] = lock.lockId
-            dct['expiry'] = lock.expiry
-            lockDetails = Locks.query.get(lock.lockId)
-            dct['alias'] = lockDetails.alias
-            dct['address'] = lockDetails.address
-            lockDict[lock.lockId] = dct
+            print(lock.expiry)
+            if lock.expiry == None or lock.expiry > datetime.now():
+                dct = {}
+                dct['lockId'] = lock.lockId
+                dct['expiry'] = lock.expiry
+                lockDetails = Locks.query.get(lock.lockId)
+                dct['alias'] = lockDetails.alias
+                dct['address'] = lockDetails.address
+                lockDict[lock.lockId] = dct
         return lockDict
     except sqlalchemy.orm.exc.NoResultFound:
         return 'false'
@@ -279,9 +281,11 @@ def getPermissions():
             indict['userType'] = row.userType
             indict['username'] = row.username
             if row.expiry is None:
-                indict['expiry'] = None
+                indict['expiryDisplay'] = None
+                indict['expiryActual'] = None
             else:
-                indict['expiry'] = datetime.strftime(row.expiry, "%I:%M %P %d-%m-%y")
+                indict['expiryDisplay'] = datetime.strftime(row.expiry, "%I:%M %P %d-%m-%y")
+                indict['expiryActual'] = datetime.strftime(row.expiry, "%I:%M %P %m-%d-%y")
             resp = Users.query.get(row.username)
             indict['name'] = resp.name
             arr.append(indict)
@@ -296,7 +300,7 @@ def getPermissions():
 def grantPermission():
     try:
         content = json.loads(request.data)
-        rec = Acl(content['lockId'], content['username'], content['userType'], content['expiry'])
+        rec = Acl(content['lockId'], content['username'], content['userType'], content['expiryActual'])
         db.session.add(rec)
         db.session.commit()
         return 'true'
@@ -483,4 +487,4 @@ def updateUUID():
         return str(e)
 
 if __name__ == '__main__':
-    application.run(debug = True)
+    application.run(host="0.0.0.0", debug = True)
