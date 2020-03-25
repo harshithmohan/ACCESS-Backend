@@ -22,7 +22,10 @@ def hello():
 
 @application.route('/test',methods = ['GET','POST'])   
 def test():
-    content = json.loads(request.data)
+    data = json.loads(request.data)
+    if not checkAccessToken(data['accessToken'], data['refreshToken']):
+        return 'invalid'
+    content = data['content']
     try:
         print(Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one())
         return 'true'
@@ -32,7 +35,10 @@ def test():
 @application.route('/addLock',methods = ['GET','POST'])   
 def addLock():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lock = Locks(content['lockId'], content['username'])
         db.session.add(lock)
         db.session.commit()
@@ -42,6 +48,7 @@ def addLock():
     except sqlalchemy.exc.IntegrityError as e:
         return 'duplicate'
     except Exception as e:
+        print(e)
         return str(e) 
 
 def addLog(content):
@@ -52,15 +59,20 @@ def addLog(content):
         return 'true'
     except Exception as e:
         return str(e)
+
 @application.route('/ble',methods=['GET', 'POST'])
 def ble():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         pl = {'operation' : 'ble'}
         response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         return 'true'
     except Exception as e:
         return str(e)
+
 @application.route('/changePassword', methods = ['GET', 'POST'])
 def changePassword():
     try:
@@ -76,10 +88,23 @@ def changePassword():
     except Exception as e:
         return str(e)
 
+def checkAccessToken(accessToken, refreshToken):
+    try:
+        cog.get_user(AccessToken = accessToken)
+        return True
+    except Exception:
+        try:
+            getNewToken(refreshToken)
+        except Exception:
+            return False
+
 @application.route('/checkPermission', methods = ['GET','POST'])
 def checkPermission():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         if Locks.query.get(content['lockId']).username == content['username']:
             content['userType'] = 'owner'
         else:
@@ -92,25 +117,6 @@ def checkPermission():
         return 'false'
     except Exception as e:
         return str(e)
-
-@application.route('/checkToken', methods = ['GET', 'POST'])
-def checkToken():
-    try:
-        content = json.loads(request.data)
-        cog.get_user(AccessToken = content['accessToken'])
-    except cog.exceptions.NotAuthorizedException:
-        try:
-            auth = cog.initiate_auth(
-                AuthFlow = 'REFRESH_TOKEN_AUTH',
-                AuthParameters = {
-                    'REFRESH_TOKEN': content['refreshToken']
-                },
-                ClientId = cogcli
-            )
-            return auth['AuthenticationResult']
-        except Exception:
-            return 'false'
-    return 'true'
 
 @application.route('/confirmForgotPassword', methods = ['GET', 'POST'])
 def confirmForgotPassword():
@@ -130,7 +136,10 @@ def confirmForgotPassword():
 @application.route('/deleteLock',methods = ['GET','POST'])
 def deleteLock():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lock = Locks.query.get(content['lockId'])
         db.session.delete(lock)
         db.session.commit()
@@ -143,7 +152,10 @@ def deleteLock():
 @application.route('/editLock',methods = ['GET','POST'])
 def editLock():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lock = Locks.query.get(content['lockId'])
         lock.address = content['address']
         lock.alias = content['alias']
@@ -156,7 +168,10 @@ def editLock():
 @application.route('/editPermission', methods = ['GET', 'POST'])
 def editPermission():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
         perm.expiry = content['expiryActual']
         perm.userType = content['userType']
@@ -170,16 +185,29 @@ def editPermission():
 @application.route('/getBluetoothDetails', methods = ['GET', 'POST'])
 def getBluetoothDetails():
     try:
-        content = json.loads(request.data)
-        lock = Locks.query.get(content['lockId'])
-        return str({ 'btAddress': lock.btAddress })
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
+        user = cog.get_user(AccessToken = data['accessToken'])
+        res = Acl.query.get((content['lockId'], user['Username']))
+        if res != None:
+            lock = Locks.query.get(content['lockId'])
+            dct = {}
+            dct['btAddress'] = lock.btAddress
+            return dct
+        else:
+            return 'false'
     except Exception as e:
-        return str(e)
+        return 'false'
 
 @application.route('/getGuests', methods = ['GET', 'POST'])
 def getUsers():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         guests = Locks.query.get(content['lockId']).acl
         print(guests)
         dct={}
@@ -197,10 +225,33 @@ def getUsers():
     except Exception as e:
         return str(e)
 
+
+def getNewToken(refreshToken):
+    try: 
+        auth = cog.initiate_auth(
+            AuthFlow = 'REFRESH_TOKEN_AUTH',
+            AuthParameters = {
+                'REFRESH_TOKEN': refreshToken
+            },
+            ClientId = cogcli
+        )
+        return auth['AuthenticationResult']
+    except Exception as e:
+        return 'false'
+
+@application.route('/getNewToken', methods = ['GET', 'POST'])
+def callgetNewToken():
+    content = json.loads(request.data)
+    return getNewToken(content['refreshToken'])
+    
+
 @application.route('/getLocks', methods = ['GET','POST'])
 def getLocks():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lockDict = {}
         lcks = Users.query.get(content['username']).locks
         for lock in lcks:
@@ -220,7 +271,10 @@ def getLocks():
 @application.route('/getOtherLocks', methods = ['GET','POST'])
 def getOtherLocks():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lockDict = {}
         lcks = Users.query.get(content['username']).acl
         # print(lcks)
@@ -243,7 +297,10 @@ def getOtherLocks():
 @application.route('/getLogs', methods= ['GET', 'POST'])
 def getLogs():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         logArr = []
         locks = []
         users = set()
@@ -273,7 +330,10 @@ def getLogs():
 @application.route('/getPermissions', methods = ['GET', 'POST'])
 def getPermissions():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         arr = []
         resp = Acl.query.filter_by(lockId = content['lockId']).all()
         for row in resp:
@@ -299,7 +359,10 @@ def getPermissions():
 @application.route('/grantPermission', methods = ['GET','POST'])
 def grantPermission():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         rec = Acl(content['lockId'], content['username'], content['userType'], content['expiryActual'])
         db.session.add(rec)
         db.session.commit()
@@ -316,7 +379,10 @@ def grantPermission():
 @application.route('/forgotPassword', methods= ['GET', 'POST'])
 def forgotPassword():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         cog.forgot_password(ClientId=cogcli, Username=content['username'])
         return 'true'
     except cog.exceptions.UserNotFoundException:
@@ -327,7 +393,10 @@ def forgotPassword():
 @application.route('/lockOperations', methods = ['GET', 'POST'])
 def lockOperations():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
         message_title = "ACCESS"
         message_icon = 'notification_icon'
@@ -336,30 +405,63 @@ def lockOperations():
         pl = {'operation' : content['operation']}
         response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         addLog(content)
-        users = []
+        # users = []
         lock = Locks.query.get(content['lockId'])
         owner = Users.query.get(content['username'])
-        if content['username'] == lock.username:
-            message_body = "You have " + content['operation'] + "ed " + lock.alias
-            push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-        else:
-            users.append(lock.username)
-        for rec in lock.acl:
-            if not rec.userType == 'guest':
-                users.append(rec.username)
-        for user in users:
-            row = Users.query.get(user)
-            message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
-            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        # if content['username'] == lock.username:
+        message_body = "You have " + content['operation'] + "ed " + lock.alias
+        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        # else:
+        #     users.append(lock.username)
+        # for rec in lock.acl:
+        #     if not rec.userType == 'guest':
+        #         users.append(rec.username)
+        # for user in users:
+        #     row = Users.query.get(user)
+        #     message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
+        #     push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
         print(response)
         return str(response)
     except Exception as e:
-        return str(e)
+        return 'false'
+
+@application.route('/lockOperationsGuest', methods = ['GET', 'POST'])
+def lockOperationsGuest():
+    try:
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
+        lock = Locks.query.get(content['lockId'])
+        if content['btUUID'].lower() != lock.bleUUID:
+            print('PRINTING IDS')
+            print(content['btUUID'].lower())
+            print(lock.bleUUID)
+            return 'false'
+        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
+        message_title = "ACCESS"
+        message_icon = 'notification_icon'
+        if content['operation'] not in ['lock', 'unlock']:
+            return 'Invalid operation'
+        pl = {'operation' : content['operation']}
+        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
+        addLog(content)
+        lock = Locks.query.get(content['lockId'])
+        message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
+        push_service.notify_multiple_devices(registration_ids=Users.query.get(lock.username).appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        print(response)
+        return str(response)
+    except Exception as e:
+        print(e)
+        return 'false'
 
 @application.route('/notifyWebcam', methods = ['GET', 'POST'])
 def notify():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
         message_title = "ACCESS"
         message_icon = 'notification_icon'
@@ -386,7 +488,7 @@ def login():
             },
             ClientId = cogcli
         )
-        retval = auth["AuthenticationResult"]
+        retval = auth['AuthenticationResult']
         resp = Users.query.get(content['username'])
         if not content['appId'] in resp.appIds:
             new_arr = resp.appIds.copy()
@@ -451,7 +553,10 @@ def signup():
 @application.route('/toggleFavourite',methods = ['GET','POST'])
 def toggleFavourite():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         lock = Locks.query.get(content['lockId'])
         if content['choice'] == 'fav':
             lock.favourite = True
@@ -467,7 +572,10 @@ def toggleFavourite():
 @application.route('/startWebcam', methods = ['GET', 'POST'])
 def webcam():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         pl = {'operation' : 'startWebcam'}
         response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
         return 'true'
@@ -477,7 +585,10 @@ def webcam():
 @application.route('/updateUUID', methods = ['GET', 'POST'])
 def updateUUID():
     try:
-        content = json.loads(request.data)
+        data = json.loads(request.data)
+        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+            return 'invalid'
+        content = data['content']
         uuid = content['uuid']
         lock = Locks.query.get(content['lockId'])
         lock.bleUUID = uuid
