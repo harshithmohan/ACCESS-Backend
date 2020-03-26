@@ -2,130 +2,105 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import boto3
+import botocore
 import json
 from pyfcm import FCMNotification
 from models import *
 import sqlalchemy
-from sqlalchemy import or_
-cogcli='7mbneubah8favrjhefcn79taum'
+
+cogcli = '7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
-iotcore=boto3.client('iot-data', region_name='ap-south-1')
+iotcore = boto3.client('iot-data', region_name='ap-south-1')
 application = Flask(__name__)
 application.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
 application.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-cors = CORS(application, resources = {r'/*':{'origins':'*'}})
+cors = CORS(application, resources={r'/*': {'origins': '*'}})
 db.init_app(application)
 
-@application.route('/', methods = ['GET'])
-def hello():
-    return 'HELLO. FLASK IS WORKING!'
 
-@application.route('/test',methods = ['GET','POST'])   
-def test():
-    data = json.loads(request.data)
-    if not checkAccessToken(data['accessToken'], data['refreshToken']):
-        return 'invalid'
-    content = data['content']
-    try:
-        print(Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one())
-        return 'true'
-    except NoResultFound:
-        return 'false'
+# Flask Functions
 
-@application.route('/addLock',methods = ['GET','POST'])   
-def addLock():
+@application.route('/addLock', methods=['GET', 'POST'])
+def add_lock():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
-        lock = Locks(content['lockId'], content['username'])
+
+        lock = Locks(content['lockId'], checkToken['username'])
         db.session.add(lock)
         db.session.commit()
-        return 'true'
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
+
+        return {
+            'status': True
+        }
+
     except sqlalchemy.exc.IntegrityError as e:
-        return 'duplicate'
+        return {
+            'status': False,
+            'content': 'Lock already exists!'
+        }
+
     except Exception as e:
-        print(e)
-        return str(e) 
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
 
-def addLog(content):
+
+@application.route('/changePassword', methods=['GET', 'POST'])
+def change_password():
     try:
-        lg = Logs(content['lockId'], content['username'], content['operation'], content['userType'])
-        db.session.add(lg)
-        db.session.commit()
-        return 'true'
+        content = json.loads(request.data)
+
+        res = cog.change_password(
+            PreviousPassword=content['oldPassword'],
+            ProposedPassword=content['newPassword'],
+            AccessToken=content['accessToken']
+        )
+
+        return {
+            'status': True
+        }
+
+    except cog.exceptions.NotAuthorizedException as e:
+        return {
+            'status': False,
+            'content': 'Old password is incorrect!'
+        }
+
+    except botocore.exceptions.ParamValidationError:
+        return {
+            'status': False,
+            'content': 'Invalid Password'
+        }
+
     except Exception as e:
-        return str(e)
+        print('Exception:', e.__class__)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
 
-@application.route('/ble',methods=['GET', 'POST'])
-def ble():
-    try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        pl = {'operation' : 'ble'}
-        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
-        return 'true'
-    except Exception as e:
-        return str(e)
 
-@application.route('/changePassword', methods = ['GET', 'POST'])
-def changePassword():
+@application.route('/confirmForgotPassword', methods=['GET', 'POST'])
+def confirm_forgot_password():
     try:
-        content=json.loads(request.data)
-        cog.change_password( PreviousPassword=content['previousPassword'],ProposedPassword=content['newPassword'],AccessToken=content['accessToken'])
-        return 'true'
-    except cog.exceptions.UserNotFoundException:
-        return 'User does not exist'
-    except cog.exceptions.InvalidParameterException:
-        return 'Email not verified'
-    except cog.exceptions.InvalidPasswordException:
-        return 'Invalid Password'
-    except Exception as e:
-        return str(e)
-
-def checkAccessToken(accessToken, refreshToken):
-    try:
-        cog.get_user(AccessToken = accessToken)
-        return True
-    except Exception:
-        try:
-            getNewToken(refreshToken)
-        except Exception:
-            return False
-
-@application.route('/checkPermission', methods = ['GET','POST'])
-def checkPermission():
-    try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        if Locks.query.get(content['lockId']).username == content['username']:
-            content['userType'] = 'owner'
-        else:
-            ac = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
-            content['userType'] = 'guest'
-        content['operation'] = 'lock'
-        addLog(content)
-        return 'true'
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
-
-@application.route('/confirmForgotPassword', methods = ['GET', 'POST'])
-def confirmForgotPassword():
-    try:
-        content=json.loads(request.data)
-        cog.confirm_forgot_password(ClientId=cogcli, Username=content['username'], ConfirmationCode=content['code'], Password=content['password'])
+        content = json.loads(request.data)
+        cog.confirm_forgot_password(
+            ClientId=cogcli,
+            Username=content['username'],
+            ConfirmationCode=content['code'],
+            Password=content['password']
+        )
         return 'true'
     except cog.exceptions.UserNotFoundException:
-        return 'User does not exist. Try Again!' 
+        return 'User does not exist. Try Again!'
     except cog.exceptions.InvalidParameterException:
         return 'Email not verified'
     except cog.exceptions.CodeMismatchException:
@@ -133,462 +108,690 @@ def confirmForgotPassword():
     except Exception as e:
         return str(e)
 
-@application.route('/deleteLock',methods = ['GET','POST'])
-def deleteLock():
+
+@application.route('/deleteLock', methods=['GET', 'POST'])
+def delete_lock():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
         lock = Locks.query.get(content['lockId'])
+        if lock.username != checkToken['username']:
+            return 'invalid'
         db.session.delete(lock)
         db.session.commit()
-        return 'true'
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
 
-@application.route('/editLock',methods = ['GET','POST'])
-def editLock():
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/editLock', methods=['GET', 'POST'])
+def edit_lock():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
         lock = Locks.query.get(content['lockId'])
+        if lock.username != checkToken['username']:
+            return 'invalid'
         lock.address = content['address']
         lock.alias = content['alias']
         lock.webcam = content['webcam']
         db.session.commit()
-        return 'true'
-    except Exception as e:
-        return str(e)
 
-@application.route('/editPermission', methods = ['GET', 'POST'])
-def editPermission():
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/editPermission', methods=['GET', 'POST'])
+def edit_permission():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
-        perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
+
+        lock = Locks.query.get(content['lockId'])
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
+            return 'invalid'
+
+        perm = Acl.query.filter_by(lockId=content['lockId'], username=content['username']).one()
         perm.expiry = content['expiryActual']
         perm.userType = content['userType']
         if perm.userType == 'Owner':
             perm.expiry = None
         db.session.commit()
-        return 'true'
-    except Exception as e:
-        return str(e)
 
-@application.route('/getBluetoothDetails', methods = ['GET', 'POST'])
-def getBluetoothDetails():
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/getBluetoothAddress', methods=['GET', 'POST'])
+def get_bluetooth_address():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
-        user = cog.get_user(AccessToken = data['accessToken'])
-        res = Acl.query.get((content['lockId'], user['Username']))
-        if res != None:
+
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if acl is not None:
             lock = Locks.query.get(content['lockId'])
-            dct = {}
-            dct['btAddress'] = lock.btAddress
-            return dct
+            return {
+                'status': True,
+                'content': lock.btAddress
+            }
+
         else:
-            return 'false'
+            return {
+                'status': 'invalid'
+            }
+
     except Exception as e:
-        return 'false'
-
-@application.route('/getGuests', methods = ['GET', 'POST'])
-def getUsers():
-    try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        guests = Locks.query.get(content['lockId']).acl
-        print(guests)
-        dct={}
-        for guest in guests:
-            indict = {}
-            username = guest.username
-            user = Users.query.get(guest.username)
-            indict['name'] = user.name
-            indict['userType'] = guest.userType
-            indict['expiry'] = datetime.strftime(guest.expiry, "%I:%M %P %d-%m-%y")
-            dct[username] = indict
-        return str(dct)
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
 
 
-def getNewToken(refreshToken):
-    try: 
-        auth = cog.initiate_auth(
-            AuthFlow = 'REFRESH_TOKEN_AUTH',
-            AuthParameters = {
-                'REFRESH_TOKEN': refreshToken
-            },
-            ClientId = cogcli
-        )
-        return auth['AuthenticationResult']
-    except Exception as e:
-        return 'false'
-
-@application.route('/getNewToken', methods = ['GET', 'POST'])
-def callgetNewToken():
+@application.route('/getNewToken', methods=['GET', 'POST'])
+def call_get_new_token():
     content = json.loads(request.data)
-    return getNewToken(content['refreshToken'])
-    
+    return get_new_token(content['refreshToken'])
 
-@application.route('/getLocks', methods = ['GET','POST'])
-def getLocks():
+
+@application.route('/getLocks', methods=['GET', 'POST'])
+def get_locks():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
         lockDict = {}
-        lcks = Users.query.get(content['username']).locks
-        for lock in lcks:
-            dct = {}
-            dct['lockId'] = lock.lockId
-            dct['alias'] = lock.alias
-            dct['address'] = lock.address
-            dct['favourite'] = lock.favourite
-            dct['webcam'] = lock.webcam
-            lockDict[lock.lockId] = dct
-        return lockDict
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
+        locks = Users.query.get(checkToken['username']).locks
+
+        for lock in locks:
+            temp = {
+                'lockId': lock.lockId,
+                'alias': lock.alias,
+                'address': lock.address,
+                'favourite': lock.favourite,
+                'webcam': lock.webcam
+            }
+            lockDict[lock.lockId] = temp
+
+        return {
+            'status': True,
+            'content': lockDict
+        }
+
     except Exception as e:
-        return str(e) 
+        print('Exception:', e)
+        return {
+            'status': False
+        }
 
-@application.route('/getOtherLocks', methods = ['GET','POST'])
-def getOtherLocks():
+
+@application.route('/getOtherLocks', methods=['GET', 'POST'])
+def get_other_locks():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
         lockDict = {}
-        lcks = Users.query.get(content['username']).acl
-        # print(lcks)
-        for lock in lcks:
-            print(lock.expiry)
-            if lock.expiry == None or lock.expiry > datetime.now():
-                dct = {}
-                dct['lockId'] = lock.lockId
-                dct['expiry'] = lock.expiry
+        locks = Users.query.get(checkToken['username']).acl
+
+        for lock in locks:
+            if lock.userType == 'Owner' or lock.expiry > datetime.now():
                 lockDetails = Locks.query.get(lock.lockId)
-                dct['alias'] = lockDetails.alias
-                dct['address'] = lockDetails.address
-                lockDict[lock.lockId] = dct
-        return lockDict
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
+                temp = {
+                    'lockId': lock.lockId,
+                    'expiry': lock.expiry,
+                    'alias': lockDetails.alias,
+                    'address': lockDetails.address,
+                    'userType': lock.userType
+                }
+                lockDict[lock.lockId] = temp
 
-@application.route('/getLogs', methods= ['GET', 'POST'])
-def getLogs():
+        return {
+            'status': True,
+            'content': lockDict
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/getLogs', methods=['GET', 'POST'])
+def get_logs():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
         logArr = []
         locks = []
         users = set()
-        resp = Users.query.get(content['username']).locks 
-        for row in resp:
+
+        for row in Users.query.get(checkToken['username']).locks:
             locks.append(row.lockId)
+
+        for row in Acl.query.filter_by(username=checkToken['username'], userType='Owner'):
+            locks.append(row.lockId)
+
         logs = Logs.query.filter(Logs.lockId.in_(locks)).order_by(Logs.time.desc()).all()
+
         for log in logs:
-            indict = {}
-            lockId = log.lockId
-            lockAlias = Locks.query.get(lockId).alias
-            indict['lockId'] = log.lockId
-            indict['lock'] = lockAlias
-            indict['username'] = log.username
-            indict['time'] = datetime.strftime(log.time, "%I:%M %P %d-%m-%y")
-            indict['isoTime'] = log.time
-            indict['userType'] = log.userType
-            indict['operation'] = log.operation
+            lockAlias = Locks.query.get(log.lockId).alias
+            temp = {
+                'lockId': log.lockId,
+                'lock': lockAlias,
+                'username': log.username,
+                'time': datetime.strftime(log.time, '%I:%M %P %d-%m-%y'),
+                'isoTime': log.time,
+                'userType': log.userType,
+                'operation': log.operation
+            }
             users.add(log.username)
-            logArr.append(indict)
-        return { 'logs': logArr, 'users': list(users)}
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
+            logArr.append(temp)
 
-@application.route('/getPermissions', methods = ['GET', 'POST'])
-def getPermissions():
+        return {
+            'status': True,
+            'content': {'logs': logArr, 'users': list(users)}
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/getPermissions', methods=['GET', 'POST'])
+def get_permissions():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        arr = []
-        resp = Acl.query.filter_by(lockId = content['lockId']).all()
-        for row in resp:
-            indict = {}
-            indict['userType'] = row.userType
-            indict['username'] = row.username
-            if row.expiry is None:
-                indict['expiryDisplay'] = None
-                indict['expiryActual'] = None
-            else:
-                indict['expiryDisplay'] = datetime.strftime(row.expiry, "%I:%M %P %d-%m-%y")
-                indict['expiryActual'] = datetime.strftime(row.expiry, "%I:%M %P %m-%d-%y")
-            resp = Users.query.get(row.username)
-            indict['name'] = resp.name
-            arr.append(indict)
-        resp = Locks.query.get(content['lockId'])
-        return json.dumps({ "details" : arr, "alias": resp.alias })
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)
 
-@application.route('/grantPermission', methods = ['GET','POST'])
-def grantPermission():
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
+            return 'invalid'
+
+        content = data['content']
+        lock = Locks.query.get(content['lockId'])
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
+            return 'invalid'
+
+        details = []
+
+        for acl in Acl.query.filter_by(lockId=content['lockId']).all():
+            temp = {
+                'userType': acl.userType,
+                'username': acl.username,
+                'expiryDisplay': None,
+                'expiryActual': None,
+                'name': Users.query.get(acl.username).name
+            }
+            if acl.expiry is not None:
+                temp['expiryDisplay'] = datetime.strftime(acl.expiry, '%I:%M %P %d-%m-%y')
+                temp['expiryActual'] = datetime.strftime(acl.expiry, '%I:%M %P %m-%d-%y')
+            details.append(temp)
+
+        return {
+            'status': True,
+            'content': {'details': details, 'alias': Locks.query.get(content['lockId']).alias}
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/grantPermission', methods=['GET', 'POST'])
+def grant_permission():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+
+        lock = Locks.query.get(content['lockId'])
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
+            return 'invalid'
+
         rec = Acl(content['lockId'], content['username'], content['userType'], content['expiryActual'])
         db.session.add(rec)
         db.session.commit()
-        return 'true'
+
+        return {
+            'status': True
+        }
+
     except sqlalchemy.exc.IntegrityError as e:
         if ('Key (username)' in str(e)):
-            return 'User does not exist!'
+            return {
+                'status': False,
+                'content': 'User does not exist!'
+            }
         elif ('already exists' in str(e)):
-            return 'Permission already granted!'
-        return str(e)
-    except Exception as e:
-        return str(e)
+            return {
+                'status': False,
+                'content': 'Permission already granted!'
+            }
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
 
-@application.route('/forgotPassword', methods= ['GET', 'POST'])
-def forgotPassword():
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/forgotPassword', methods=['GET', 'POST'])
+def forgot_password():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
         content = data['content']
         cog.forgot_password(ClientId=cogcli, Username=content['username'])
         return 'true'
     except cog.exceptions.UserNotFoundException:
-        return 'User does not exist' 
+        return 'User does not exist'
     except Exception as e:
         return str(e)
 
-@application.route('/lockOperations', methods = ['GET', 'POST'])
-def lockOperations():
+
+@application.route('/lockOperations', methods=['GET', 'POST'])
+def lock_operations():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
-        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
-        message_title = "ACCESS"
+
+        lock = Locks.query.get(content['lockId'])
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
+            return 'invalid'
+
+        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+        message_title = 'ACCESS'
         message_icon = 'notification_icon'
+
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
-        pl = {'operation' : content['operation']}
-        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
-        addLog(content)
-        # users = []
-        lock = Locks.query.get(content['lockId'])
-        owner = Users.query.get(content['username'])
-        # if content['username'] == lock.username:
-        message_body = "You have " + content['operation'] + "ed " + lock.alias
-        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-        # else:
-        #     users.append(lock.username)
-        # for rec in lock.acl:
-        #     if not rec.userType == 'guest':
-        #         users.append(rec.username)
-        # for user in users:
-        #     row = Users.query.get(user)
-        #     message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
-        #     push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-        print(response)
-        return str(response)
-    except Exception as e:
-        return 'false'
 
-@application.route('/lockOperationsGuest', methods = ['GET', 'POST'])
-def lockOperationsGuest():
+        pl = {'operation': content['operation']}
+        response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
+
+        content['userType'] = 'owner'
+        add_log(content, checkToken['username'])
+        users = []
+        lock = Locks.query.get(content['lockId'])
+        operator = Users.query.get(checkToken['username'])
+
+        message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
+        push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        if checkToken['username'] != lock.username:
+            users.append(lock.username)
+
+        for rec in lock.acl:
+            if rec.userType == 'Owner' and rec.username != checkToken['username']:
+                users.append(rec.username)
+
+        for user in users:
+            row = Users.query.get(user)
+            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + checkToken['username']
+            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/lockOperationsGuest', methods=['GET', 'POST'])
+def lock_operations_guest():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
         lock = Locks.query.get(content['lockId'])
+
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if acl is None or acl.expiry < datetime.now():
+            return 'invalid'
+
         if content['btUUID'].lower() != lock.bleUUID:
-            print('PRINTING IDS')
-            print(content['btUUID'].lower())
-            print(lock.bleUUID)
-            return 'false'
-        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
-        message_title = "ACCESS"
+            return {
+                'status': False
+            }
+
+        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+        message_title = 'ACCESS'
         message_icon = 'notification_icon'
+
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
-        pl = {'operation' : content['operation']}
-        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
-        addLog(content)
-        lock = Locks.query.get(content['lockId'])
-        message_body = lock.alias + " has been " + content['operation'] + "ed by " + content['username']  
-        push_service.notify_multiple_devices(registration_ids=Users.query.get(lock.username).appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-        print(response)
-        return str(response)
-    except Exception as e:
-        print(e)
-        return 'false'
 
-@application.route('/notifyWebcam', methods = ['GET', 'POST'])
-def notify():
+        pl = {'operation': content['operation']}
+        response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
+
+        content['userType'] = 'owner'
+        add_log(content, checkToken['username'])
+        users = []
+        lock = Locks.query.get(content['lockId'])
+        operator = Users.query.get(checkToken['username'])
+        users.append(lock.username)
+
+        message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
+        push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        for rec in lock.acl:
+            if rec.userType == 'Owner':
+                users.append(rec.username)
+
+        for user in users:
+            row = Users.query.get(user)
+            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + checkToken['username']
+            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/notifyWebcam', methods=['GET', 'POST'])
+def notify_webcam():
     try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        push_service=FCMNotification(api_key="AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo")
-        message_title = "ACCESS"
-        message_icon = 'notification_icon'
+        content = json.loads(request.data)
+
         users = []
         lock = Locks.query.get(content['lockId'])
         username = lock.username
         owner = Users.query.get(username)
-        message_body = "Someone wishes to access "+lock.alias  
-        response = push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-        print(response)
-        return str(response)
+
+        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+        message_title = 'ACCESS'
+        message_icon = 'notification_icon'
+        message_body = 'Someone wishes to access ' + lock.alias
+        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        for user in Acl.query.filter_by(lockId=content['lockId']):
+            appIds = Users.query.get(user.username).appIds
+            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        return 'true'
+
     except Exception as e:
         return str(e)
 
-@application.route('/login', methods = ['GET','POST'])
+
+@application.route('/login', methods=['GET', 'POST'])
 def login():
     try:
         content = json.loads(request.data)
+
         auth = cog.initiate_auth(
-            AuthFlow = 'USER_PASSWORD_AUTH',
-            AuthParameters = {
+            ClientId=cogcli,
+            AuthFlow='USER_PASSWORD_AUTH',
+            AuthParameters={
                 'USERNAME': content['username'],
                 'PASSWORD': content['password']
-            },
-            ClientId = cogcli
+            }
         )
-        retval = auth['AuthenticationResult']
+
         resp = Users.query.get(content['username'])
         if not content['appId'] in resp.appIds:
             new_arr = resp.appIds.copy()
             new_arr.append(content['appId'])
             resp.appIds = new_arr
             db.session.commit()
-        return retval
-    except cog.exceptions.UserNotConfirmedException:
-        return 'User is not confirmed. Please check your mail.'
-    except cog.exceptions.UserNotFoundException:
-        return 'User does not exist. Check again.'
-    except cog.exceptions.NotAuthorizedException:
-        return 'Username/Password is incorrect'
-    except Exception as e:
-        return 'Unknown error. Please contact the developer.'
 
-@application.route('/logout', methods = ['GET', 'POST'])
+        return {
+            'status': True,
+            'content': auth['AuthenticationResult']
+        }
+
+    except cog.exceptions.UserNotConfirmedException:
+        return {
+            'status': False,
+            'content': 'User is not confirmed. Please check your mail.'
+        }
+
+    except cog.exceptions.NotAuthorizedException:
+        return {
+            'status': False,
+            'content': 'Username/Password is incorrect'
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/logout', methods=['GET', 'POST'])
 def logout():
     try:
         content = json.loads(request.data)
-        cog.global_sign_out(AccessToken = content['accessToken'])
+
+        cog.global_sign_out(AccessToken=content['accessToken'])
         resp = Users.query.get(content['username'])
         new_arr = resp.appIds.copy()
         new_arr.remove(content['appId'])
         resp.appIds = new_arr
         db.session.commit()
-        return 'true'
-    except Exception as e:
-        return str(e)
 
-@application.route('/revokePermission', methods = ['GET', 'POST'])
-def revokePermission():
-    try:
-        content =  json.loads(request.data)
-        perm = Acl.query.filter_by(lockId = content['lockId']).filter_by(username = content['username']).one()
-        db.session.delete(perm)
-        db.session.commit()
-        return 'true'
+        return {
+            'status': True
+        }
+
     except Exception as e:
-        return str(e)
-        
-@application.route('/signup',methods = ['GET','POST'])
-def signup():
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/register', methods=['GET', 'POST'])
+def register():
     try:
         content = json.loads(request.data)
-        user = Users(content['username'],content['name'],content['phone'])
-        cog.sign_up(
-            ClientId  = cogcli,
-            Username = content['username'],
-            Password = content['password'],
-            UserAttributes = [{'Name':'email','Value':content['email']}]
+
+        user = Users(
+            username=content['username'],
+            name=content['name'],
+            phone=content['phone']
         )
+
+        cog.sign_up(
+            ClientId=cogcli,
+            Username=content['username'],
+            Password=content['password'],
+            UserAttributes=[{'Name': 'email', 'Value': content['email']}]
+        )
+
         db.session.add(user)
         db.session.commit()
-        return 'true'
-    except cog.exceptions.UsernameExistsException:
-        return 'Username Already Exists!'
-    except Exception as e:
-        print('Exception: ' +str(e))
-        return str(e)
 
-@application.route('/toggleFavourite',methods = ['GET','POST'])
-def toggleFavourite():
+        return {
+            'status': True
+        }
+
+    except cog.exceptions.UsernameExistsException:
+        return {
+            'status': False,
+            'content': 'Username Already Exists!'
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/revokePermission', methods=['GET', 'POST'])
+def revoke_permission():
     try:
         data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
             return 'invalid'
+
         content = data['content']
+        lock = Locks.query.get(content['lockId'])
+        acl = Acl.query.get((content['lockId'], checkToken['username']))
+        if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
+            return 'invalid'
+
+        perm = Acl.query.get((content['lockId'], content['username']))
+        db.session.delete(perm)
+        db.session.commit()
+
+        return {
+            'status': True
+        }
+
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
+@application.route('/toggleFavourite', methods=['GET', 'POST'])
+def toggle_favourite():
+    try:
+        data = json.loads(request.data)
+
+        checkToken = check_access_token(data['accessToken'], data['refreshToken'])
+        if not checkToken['status']:
+            return 'invalid'
+
+        content = data['content']
+        lock = Locks.query.get(content['lockId'])
+        if lock.username != checkToken['username']:
+            return 'invalid'
+
         lock = Locks.query.get(content['lockId'])
         if content['choice'] == 'fav':
             lock.favourite = True
         else:
             lock.favourite = False
         db.session.commit()
-        return 'true'
-    except sqlalchemy.orm.exc.NoResultFound:
-        return 'false'
-    except Exception as e:
-        return str(e)  
 
-@application.route('/startWebcam', methods = ['GET', 'POST'])
-def webcam():
-    try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
-        pl = {'operation' : 'startWebcam'}
-        response = iotcore.publish(topic = 'access/' + content['lockId'], qos = 1, payload = json.dumps(pl))
-        return 'true'
-    except Exception as e:
-        return str(e)
+        return {
+            'status': True
+        }
 
-@application.route('/updateUUID', methods = ['GET', 'POST'])
-def updateUUID():
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False,
+            'content': 'Unknown error. Please contact the developer.'
+        }
+
+
+@application.route('/updateUUID', methods=['GET', 'POST'])
+def update_uuid():
     try:
-        data = json.loads(request.data)
-        if not checkAccessToken(data['accessToken'], data['refreshToken']):
-            return 'invalid'
-        content = data['content']
+        content = json.loads(request.data)
         uuid = content['uuid']
         lock = Locks.query.get(content['lockId'])
         lock.bleUUID = uuid
@@ -597,5 +800,61 @@ def updateUUID():
     except Exception as e:
         return str(e)
 
+
+# Non-Flask Functions
+
+def add_log(content, username):
+    try:
+        lg = Logs(content['lockId'], username, content['operation'], content['userType'])
+        db.session.add(lg)
+        db.session.commit()
+        return True
+    except Exception as e:
+        print('Exception:', e)
+        return False
+
+
+def check_access_token(accessToken, refreshToken):
+    try:
+        user = cog.get_user(AccessToken=accessToken)
+        return {
+            'status': True,
+            'username': user.Username
+        }
+    except Exception as e:
+        newToken = get_new_token(refreshToken)
+        if newToken['status']:
+            user = cog.get_user(AccessToken=newToken['content']['AccessToken'])
+            return {
+                'status': True,
+                'username': user['Username']
+            }
+        else:
+            print('Exception:', e)
+            return {
+                'status': False
+            }
+
+
+def get_new_token(refreshToken):
+    try:
+        auth = cog.initiate_auth(
+            AuthFlow='REFRESH_TOKEN_AUTH',
+            AuthParameters={
+                'REFRESH_TOKEN': refreshToken
+            },
+            ClientId=cogcli
+        )
+        return {
+            'status': True,
+            'content': auth['AuthenticationResult']
+        }
+    except Exception as e:
+        print('Exception:', e)
+        return {
+            'status': False
+        }
+
+
 if __name__ == '__main__':
-    application.run(host="0.0.0.0", debug = True)
+    application.run(host='0.0.0.0', debug=True)
