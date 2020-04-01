@@ -495,8 +495,8 @@ def lock_operations():
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
 
-        if content['operation'] == lock.status:
-            return lock.alias + ' is already ' + lock.status + 'ed!'
+        if content['operation'] == lock.state:
+            return lock.alias + ' is already ' + lock.state + 'ed!'
 
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
@@ -561,8 +561,8 @@ def lock_operations_guest():
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
         
-        if content['operation'] == lock.status:
-            return lock.alias + ' is already ' + lock.status + 'ed!'
+        if content['operation'] == lock.state:
+            return lock.alias + ' is already ' + lock.state + 'ed!'
 
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
