@@ -32,6 +32,7 @@ class Locks(db.Model):
     username = db.Column(db.Text, db.ForeignKey('users.username'), nullable=False)
     bleUUID = db.Column(db.Text)
     btAddress = db.Column(db.Text)
+    state = db.Column(db.Text)
 
     acl = db.relationship('Acl', cascade='all, delete, delete-orphan')
     logs = db.relationship('Logs', cascade='all, delete, delete-orphan')

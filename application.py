@@ -495,6 +495,9 @@ def lock_operations():
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
 
+        if content['operation'] == lock.status:
+            return lock.alias + ' is already ' + lock.status + 'ed!'
+
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
 
@@ -557,6 +560,9 @@ def lock_operations_guest():
 
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
+        
+        if content['operation'] == lock.status:
+            return lock.alias + ' is already ' + lock.status + 'ed!'
 
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
@@ -787,6 +793,17 @@ def toggle_favourite():
             'content': 'Unknown error. Please contact the developer.'
         }
 
+@application.route('/updateState', methods=['GET', 'POST'])
+def update_state():
+    try:
+        content = json.loads(request.data)
+        state = content['state']
+        lock = Locks.query.get(content['lockId'])
+        lock.state = state
+        db.session.commit()
+        return 'true'
+    except Exception as e:
+        return str(e)
 
 @application.route('/updateUUID', methods=['GET', 'POST'])
 def update_uuid():
