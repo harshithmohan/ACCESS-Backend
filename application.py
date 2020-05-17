@@ -345,7 +345,7 @@ def get_logs():
         for log in logs:
             lockAlias = Locks.query.get(log.lockId).alias
             if log.operation == 'doorbell':
-                images = log.username.split(",")
+                images = log.userType.split(",")
             else:
                 images = []
             temp = {
@@ -846,9 +846,10 @@ def upload_image():
         doorbell = {
             'lockId' : content['lockId'],
             'operation' : 'doorbell',
-            'userType' : 'visitor'
+            'userType' : images
         }
-        add_log(doorbell, images)
+        thislock = Locks.query.get(content['lockId'])
+        add_log(doorbell, thislock.username)
     except Exception as e:
         return "s3 error" + str(e)
 
