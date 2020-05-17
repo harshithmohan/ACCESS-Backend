@@ -843,7 +843,12 @@ def upload_image():
                 images += s3url + ","
             else:
                 images += s3url
-        add_log(content['lockId'], images, "doorbell", "visitor")
+        doorbell = {
+            'lockId' : content['lockId'],
+            'operation' : 'doorbell',
+            'userType' : 'visitor'
+        }
+        add_log(doorbell, "visitor")
     except Exception as e:
         return "s3 error" + str(e)
 
