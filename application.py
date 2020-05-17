@@ -845,7 +845,7 @@ def upload_image():
                 images += s3url
         add_log(content['lockId'], images, "doorbell", "visitor")
     except Exception as e:
-        return str(e)
+        return "s3 error" + str(e)
 
 
 # Non-Flask Functions
