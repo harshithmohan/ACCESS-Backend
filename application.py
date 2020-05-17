@@ -7,6 +7,8 @@ import json
 from pyfcm import FCMNotification
 from models import *
 import sqlalchemy
+import base64
+
 cogcli = '7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
 iotcore = boto3.client('iot-data', region_name='ap-south-1')
