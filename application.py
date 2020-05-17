@@ -355,7 +355,7 @@ def get_logs():
                 'time': datetime.strftime(log.time, '%I:%M %P %d-%m-%y'),
                 'isoTime': log.time,
                 'userType': log.userType,
-                'operation': log.operation
+                'operation': log.operation,
                 'images' : images
             }
             users.add(log.username)
