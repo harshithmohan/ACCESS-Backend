@@ -834,8 +834,8 @@ def upload_image():
         content = json.loads(request.data)
         lockId = content['lockId']
         images = ""
-        for i in range(1,3):
-            frame = base64.decodebytes(content['frames'][i-1].encode('ascii'))
+        for thisframe in content['frames']:
+            frame = base64.decodebytes(thisframe.encode('ascii'))
             filename = lockId + str(datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')) + ".jpg"
             s3.put_object(Key=filename, Bucket='access-images', Body=frame, ACL='public-read')
             s3url = "https://access-images.s3.ap-south-1.amazonaws.com/" + filename 
