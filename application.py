@@ -7,10 +7,10 @@ import json
 from pyfcm import FCMNotification
 from models import *
 import sqlalchemy
-
 cogcli = '7mbneubah8favrjhefcn79taum'
 cog = boto3.client('cognito-idp', region_name='ap-south-1')
 iotcore = boto3.client('iot-data', region_name='ap-south-1')
+s3 = boto3.client('s3', region_name='ap-south-1')
 application = Flask(__name__)
 application.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:ITdept(4895@rds.c2ocfdyvtbwu.ap-south-1.rds.amazonaws.com:5432/postgres'
 application.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -341,6 +341,10 @@ def get_logs():
 
         for log in logs:
             lockAlias = Locks.query.get(log.lockId).alias
+            if log.operation == 'doorbell':
+                images = log.username.split(",")
+            else:
+                images = []
             temp = {
                 'lockId': log.lockId,
                 'lock': lockAlias,
@@ -349,6 +353,7 @@ def get_logs():
                 'isoTime': log.time,
                 'userType': log.userType,
                 'operation': log.operation
+                'images' : images
             }
             users.add(log.username)
             logArr.append(temp)
@@ -496,10 +501,13 @@ def lock_operations():
             return 'Invalid operation'
 
         if content['operation'] == lock.state:
-            return lock.alias + ' is already ' + lock.state + 'ed!'
+            return {
+            'status': False,
+            'content': lock.alias + ' is already ' + lock.state + 'ed!'
+        }
 
         pl = {'operation': content['operation']}
-        response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
+        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
 
         content['userType'] = 'owner'
         add_log(content, checkToken['username'])
@@ -562,12 +570,15 @@ def lock_operations_guest():
             return 'Invalid operation'
         
         if content['operation'] == lock.state:
-            return lock.alias + ' is already ' + lock.state + 'ed!'
+            return {
+            'status': False,
+            'content': lock.alias + ' is already ' + lock.state + 'ed!'
+        }
 
         pl = {'operation': content['operation']}
-        response = iotcore.publish(topic='access/' + content['lockId'], qos=1, payload=json.dumps(pl))
-
-        content['userType'] = 'owner'
+        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
+        acl_row = Acl.query.filter_by(lockId=content['lockId'], username=checkToken['username']).one()
+        content['userType'] = acl_row.userType
         add_log(content, checkToken['username'])
         users = []
         lock = Locks.query.get(content['lockId'])
@@ -595,33 +606,6 @@ def lock_operations_guest():
         return {
             'status': False
         }
-
-
-@application.route('/notifyWebcam', methods=['GET', 'POST'])
-def notify_webcam():
-    try:
-        content = json.loads(request.data)
-
-        users = []
-        lock = Locks.query.get(content['lockId'])
-        username = lock.username
-        owner = Users.query.get(username)
-
-        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
-        message_title = 'ACCESS'
-        message_icon = 'notification_icon'
-        message_body = 'Someone wishes to access ' + lock.alias
-        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-
-        for user in Acl.query.filter_by(lockId=content['lockId']):
-            appIds = Users.query.get(user.username).appIds
-            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-
-        return 'true'
-
-    except Exception as e:
-        return str(e)
-
 
 @application.route('/login', methods=['GET', 'POST'])
 def login():
@@ -691,6 +675,30 @@ def logout():
             'status': False
         }
 
+@application.route('/notifyWebcam', methods=['GET', 'POST'])
+def notify_webcam():
+    try:
+        content = json.loads(request.data)
+
+        users = []
+        lock = Locks.query.get(content['lockId'])
+        username = lock.username
+        owner = Users.query.get(username)
+
+        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+        message_title = 'ACCESS'
+        message_icon = 'notification_icon'
+        message_body = 'Someone wishes to access ' + lock.alias
+        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        for user in Acl.query.filter_by(lockId=content['lockId']):
+            appIds = Users.query.get(user.username).appIds
+            push_service.notify_multiple_devices(registration_ids=appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        return 'true'
+
+    except Exception as e:
+        return str(e)
 
 @application.route('/register', methods=['GET', 'POST'])
 def register():
@@ -817,6 +825,25 @@ def update_uuid():
     except Exception as e:
         return str(e)
 
+@application.route('/uploadImage', methods=['GET', 'POST'])
+def upload_image():
+    try:
+        content = json.loads(request.data)
+        lockId = content['lockId']
+        images = ""
+        for i in range(1,3):
+            frame = base64.decodebytes(content['frames'][i-1].encode('ascii'))
+            filename = lockId + str(datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')) + ".jpg"
+            s3.put_object(Key=filename, Bucket='access-images', Body=frame, ACL='public-read')
+            s3url = "https://access-images.s3.ap-south-1.amazonaws.com/" + filename 
+            if images == "":
+                images += s3url + ","
+            else:
+                images += s3url
+        add_log(content['lockId'], images, "doorbell", "visitor")
+    except Exception as e:
+        return str(e)
+
 
 # Non-Flask Functions
 
@@ -871,7 +898,5 @@ def get_new_token(refreshToken):
         return {
             'status': False
         }
-
-
 if __name__ == '__main__':
     application.run(host='0.0.0.0', debug=True)
