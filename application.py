@@ -848,7 +848,7 @@ def upload_image():
             'operation' : 'doorbell',
             'userType' : 'visitor'
         }
-        add_log(doorbell, "visitor")
+        add_log(doorbell, images)
     except Exception as e:
         return "s3 error" + str(e)
 
