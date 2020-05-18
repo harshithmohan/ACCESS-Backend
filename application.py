@@ -862,7 +862,7 @@ def upload_image():
 
 def add_log(content, username):
     try:
-        lg = Logs(content['lockId'], username, content['operation'], content['userType'])
+        lg = Logs(content['lockId'], username, content['operation'], content['userType'],content['images'])
         db.session.add(lg)
         db.session.commit()
         return True
