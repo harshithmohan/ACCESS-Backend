@@ -358,7 +358,7 @@ def get_logs():
                 'operation': log.operation,
                 'images': images
             }
-            if log.username:
+            if log.username and log.username != 'visitor':
                 users.add(log.username)
             logArr.append(temp)
 
@@ -857,7 +857,7 @@ def upload_image():
             'images': images
         }
         thislock = Locks.query.get(content['lockId'])
-        add_log(doorbell, None)
+        add_log(doorbell, 'visitor')
         return 'true'
 
     except Exception as e:
