@@ -345,15 +345,14 @@ def get_logs():
         for log in logs:
             lockAlias = Locks.query.get(log.lockId).alias
             if log.operation == 'doorbell':
-                images = log.userType.split(",")
-                return_username = ""
+                images = log.images.split(",")
             else:
                 images = []
                 return_username = log.username
             temp = {
                 'lockId': log.lockId,
                 'lock': lockAlias,
-                'username': return_username,
+                'username': log.username,
                 'time': datetime.strftime(log.time, '%I:%M %P %d-%m-%y'),
                 'isoTime': log.time,
                 'userType': log.userType,
