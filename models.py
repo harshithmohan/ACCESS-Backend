@@ -60,6 +60,7 @@ class Logs(db.Model):
         self.userType = userType
         self.images = images
 
+
 class Users(db.Model):
     __tablename__ = 'users'
 

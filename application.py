@@ -356,9 +356,10 @@ def get_logs():
                 'isoTime': log.time,
                 'userType': log.userType,
                 'operation': log.operation,
-                'images' : images
+                'images': images
             }
-            users.add(log.username)
+            if log.username:
+                users.add(log.username)
             logArr.append(temp)
 
         return {
@@ -505,9 +506,9 @@ def lock_operations():
 
         if content['operation'] == lock.state:
             return {
-            'status': False,
-            'content': lock.alias + ' is already ' + lock.state + 'ed!'
-        }
+                'status': False,
+                'content': lock.alias + ' is already ' + lock.state + 'ed!'
+            }
 
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
@@ -571,12 +572,12 @@ def lock_operations_guest():
 
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
-        
+
         if content['operation'] == lock.state:
             return {
-            'status': False,
-            'content': lock.alias + ' is already ' + lock.state + 'ed!'
-        }
+                'status': False,
+                'content': lock.alias + ' is already ' + lock.state + 'ed!'
+            }
 
         pl = {'operation': content['operation']}
         response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
@@ -609,6 +610,7 @@ def lock_operations_guest():
         return {
             'status': False
         }
+
 
 @application.route('/login', methods=['GET', 'POST'])
 def login():
@@ -678,6 +680,7 @@ def logout():
             'status': False
         }
 
+
 @application.route('/notifyWebcam', methods=['GET', 'POST'])
 def notify_webcam():
     try:
@@ -702,6 +705,7 @@ def notify_webcam():
 
     except Exception as e:
         return str(e)
+
 
 @application.route('/register', methods=['GET', 'POST'])
 def register():
@@ -804,6 +808,7 @@ def toggle_favourite():
             'content': 'Unknown error. Please contact the developer.'
         }
 
+
 @application.route('/updateState', methods=['GET', 'POST'])
 def update_state():
     try:
@@ -815,6 +820,7 @@ def update_state():
         return 'true'
     except Exception as e:
         return str(e)
+
 
 @application.route('/updateUUID', methods=['GET', 'POST'])
 def update_uuid():
@@ -828,6 +834,7 @@ def update_uuid():
     except Exception as e:
         return str(e)
 
+
 @application.route('/uploadImage', methods=['GET', 'POST'])
 def upload_image():
     try:
@@ -838,16 +845,16 @@ def upload_image():
             frame = base64.decodebytes(thisframe.encode('ascii'))
             filename = lockId + str(datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')) + ".jpg"
             s3.put_object(Key=filename, Bucket='access-images', Body=frame, ACL='public-read-write')
-            s3url = "https://access-images.s3.ap-south-1.amazonaws.com/" + filename 
+            s3url = "https://access-images.s3.ap-south-1.amazonaws.com/" + filename
             if images == "":
                 images += s3url + ","
             else:
                 images += s3url
         doorbell = {
-            'lockId' : content['lockId'],
-            'operation' : 'doorbell',
-            'userType' : 'visitor',
-            'images' : images
+            'lockId': content['lockId'],
+            'operation': 'doorbell',
+            'userType': 'visitor',
+            'images': images
         }
         thislock = Locks.query.get(content['lockId'])
         add_log(doorbell, None)
@@ -861,7 +868,7 @@ def upload_image():
 
 def add_log(content, username):
     try:
-        lg = Logs(content['lockId'], username, content['operation'], content['userType'],content['images'])
+        lg = Logs(content['lockId'], username, content['operation'], content['userType'], content['images'])
         db.session.add(lg)
         db.session.commit()
         return True
@@ -910,5 +917,7 @@ def get_new_token(refreshToken):
         return {
             'status': False
         }
+
+
 if __name__ == '__main__':
     application.run(host='0.0.0.0', debug=True)
