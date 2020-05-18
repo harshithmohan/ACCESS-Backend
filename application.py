@@ -850,6 +850,8 @@ def upload_image():
         }
         thislock = Locks.query.get(content['lockId'])
         add_log(doorbell, thislock.username)
+        return 'true'
+        
     except Exception as e:
         return "s3 error" + str(e)
 
