@@ -55,12 +55,30 @@ def add_lock():
             'content': 'Unknown error. Please contact the developer.'
         }
 
+@application.route('/changeOfflineCode', methods = ['GET', 'POST'])
+def change_offline_code():
+    try:
+        content = json.loads(request.data)
+        lock = Locks.query.get(content['lockId'])
+        username = lock.username
+        owner = Users.query.get(username)
+
+        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+        message_title = 'ACCESS'
+        message_icon = 'notification_icon'
+        message_body = 'Your new offline code is ' + content['offline_code']
+        push_service.notify_multiple_devices(registration_ids=owner.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+        return 'true'
+
+    except Exception as e:
+        return str(e)
+
 
 @application.route('/changePassword', methods=['GET', 'POST'])
 def change_password():
     try:
         content = json.loads(request.data)
-
         res = cog.change_password(
             PreviousPassword=content['oldPassword'],
             ProposedPassword=content['newPassword'],
@@ -89,28 +107,6 @@ def change_password():
             'status': False,
             'content': 'Unknown error. Please contact the developer.'
         }
-
-
-@application.route('/confirmForgotPassword', methods=['GET', 'POST'])
-def confirm_forgot_password():
-    try:
-        content = json.loads(request.data)
-        cog.confirm_forgot_password(
-            ClientId=cogcli,
-            Username=content['username'],
-            ConfirmationCode=content['code'],
-            Password=content['password']
-        )
-        return 'true'
-    except cog.exceptions.UserNotFoundException:
-        return 'User does not exist. Try Again!'
-    except cog.exceptions.InvalidParameterException:
-        return 'Email not verified'
-    except cog.exceptions.CodeMismatchException:
-        return 'Invalid Confirmation Code'
-    except Exception as e:
-        return str(e)
-
 
 @application.route('/deleteLock', methods=['GET', 'POST'])
 def delete_lock():
