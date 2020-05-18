@@ -848,10 +848,11 @@ def upload_image():
         doorbell = {
             'lockId' : content['lockId'],
             'operation' : 'doorbell',
-            'userType' : images
+            'userType' : 'visitor',
+            'images' : images
         }
         thislock = Locks.query.get(content['lockId'])
-        add_log(doorbell, thislock.username)
+        add_log(doorbell, "")
         return 'true'
 
     except Exception as e:

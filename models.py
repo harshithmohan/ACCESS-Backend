@@ -51,6 +51,7 @@ class Logs(db.Model):
     time = db.Column(postgresql.TIMESTAMP, default=datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'))
     operation = db.Column(db.Text, nullable=False)
     userType = db.Column(db.Text, nullable=False)
+    images = db.Column(db.Text)
 
     def __init__(self, lockId, username, operation, userType):
         self.lockId = lockId
