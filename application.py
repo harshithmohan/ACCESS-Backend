@@ -851,7 +851,7 @@ def upload_image():
             'images' : images
         }
         thislock = Locks.query.get(content['lockId'])
-        add_log(doorbell, "")
+        add_log(doorbell, None)
         return 'true'
 
     except Exception as e:
