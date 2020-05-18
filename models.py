@@ -53,12 +53,12 @@ class Logs(db.Model):
     userType = db.Column(db.Text, nullable=False)
     images = db.Column(db.Text)
 
-    def __init__(self, lockId, username, operation, userType):
+    def __init__(self, lockId, username, operation, userType, images):
         self.lockId = lockId
         self.username = username
         self.operation = operation
         self.userType = userType
-
+        self.images = images
 
 class Users(db.Model):
     __tablename__ = 'users'
