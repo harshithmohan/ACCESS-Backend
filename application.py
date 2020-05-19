@@ -837,11 +837,13 @@ def upload_image():
         content = json.loads(request.data)
         lockId = content['lockId']
         images = ""
+        i = 1
         for thisframe in content['frames']:
             frame = base64.decodebytes(thisframe.encode('ascii'))
-            filename = lockId + str(datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')) + ".jpg"
+            filename = lockId + str(datetime.now(timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')) + "(" + i + ")" + ".jpg"
             s3.put_object(Key=filename, Bucket='access-images', Body=frame, ACL='public-read-write')
             s3url = "https://access-images.s3.ap-south-1.amazonaws.com/" + filename
+            i +=1
             if images == "":
                 images += s3url + ","
             else:
