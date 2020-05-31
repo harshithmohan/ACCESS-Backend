@@ -55,7 +55,8 @@ def add_lock():
             'content': 'Unknown error. Please contact the developer.'
         }
 
-@application.route('/changeOfflineCode', methods = ['GET', 'POST'])
+
+@application.route('/changeOfflineCode', methods=['GET', 'POST'])
 def change_offline_code():
     try:
         content = json.loads(request.data)
@@ -107,6 +108,54 @@ def change_password():
             'status': False,
             'content': 'Unknown error. Please contact the developer.'
         }
+
+
+@application.route('/confirmLockOperation', methods=['GET', 'POST'])
+def confirmLockOperation():
+    content = json.loads(request.data)
+
+    add_log(content['content'], content['username'])
+
+    users = []
+    lock = Locks.query.get(content['lockId'])
+    operator = Users.query.get(content['username'])
+
+    push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
+    message_title = 'ACCESS'
+    message_icon = 'notification_icon'
+
+    message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
+    push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+    if content['content']['userType'] == 'owner':
+        if content['username'] != lock.username:
+            users.append(lock.username)
+
+        for rec in lock.acl:
+            if rec.userType == 'Owner' and rec.username != content['username']:
+                users.append(rec.username)
+
+        for user in users:
+            row = Users.query.get(user)
+            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + content['username']
+            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+    if content['content']['userType'] == 'guest':
+        users.append(lock.username)
+
+        for rec in lock.acl:
+            if rec.userType == 'Owner':
+                users.append(rec.username)
+
+        for user in users:
+            row = Users.query.get(user)
+            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + content['username']
+            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+
+    return {
+        'status': True
+    }
+
 
 @application.route('/deleteLock', methods=['GET', 'POST'])
 def delete_lock():
@@ -184,7 +233,7 @@ def edit_permission():
         if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
             return 'invalid'
 
-        perm = Acl.query.filter_by(lockId=content['lockId'], username=content['username']).one()
+        perm = Acl.query.get((content['lockId'], content['username']))
         perm.expiry = content['expiryActual']
         perm.userType = content['userType']
         if perm.userType == 'Owner':
@@ -493,42 +542,17 @@ def lock_operations():
         if lock.username != checkToken['username'] and acl is not None and acl.userType != 'Owner':
             return 'invalid'
 
-        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
-        message_title = 'ACCESS'
-        message_icon = 'notification_icon'
-
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
 
-        if content['operation'] == lock.state:
-            return {
-                'status': False,
-                'content': lock.alias + ' is already ' + lock.state + 'ed!'
-            }
-
-        pl = {'operation': content['operation']}
-        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
-
         content['userType'] = 'owner'
-        add_log(content, checkToken['username'])
-        users = []
-        lock = Locks.query.get(content['lockId'])
-        operator = Users.query.get(checkToken['username'])
 
-        message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
-        push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-
-        if checkToken['username'] != lock.username:
-            users.append(lock.username)
-
-        for rec in lock.acl:
-            if rec.userType == 'Owner' and rec.username != checkToken['username']:
-                users.append(rec.username)
-
-        for user in users:
-            row = Users.query.get(user)
-            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + checkToken['username']
-            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        pl = {
+            'operation': content['operation'],
+            'username': checkToken['username'],
+            'content': content
+        }
+        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
 
         return {
             'status': True
@@ -562,40 +586,17 @@ def lock_operations_guest():
                 'status': False
             }
 
-        push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
-        message_title = 'ACCESS'
-        message_icon = 'notification_icon'
-
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
 
-        if content['operation'] == lock.state:
-            return {
-                'status': False,
-                'content': lock.alias + ' is already ' + lock.state + 'ed!'
-            }
-
-        pl = {'operation': content['operation']}
-        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
-        acl_row = Acl.query.filter_by(lockId=content['lockId'], username=checkToken['username']).one()
+        acl_row = Acl.query.get((content['lockId'], checkToken['username']))
         content['userType'] = acl_row.userType
-        add_log(content, checkToken['username'])
-        users = []
-        lock = Locks.query.get(content['lockId'])
-        operator = Users.query.get(checkToken['username'])
-        users.append(lock.username)
-
-        message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
-        push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
-
-        for rec in lock.acl:
-            if rec.userType == 'Owner':
-                users.append(rec.username)
-
-        for user in users:
-            row = Users.query.get(user)
-            message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + checkToken['username']
-            push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
+        pl = {
+            'operation': content['operation'],
+            'username': checkToken['username'],
+            'content': content
+        }
+        response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
 
         return {
             'status': True
