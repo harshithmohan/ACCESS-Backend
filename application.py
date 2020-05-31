@@ -113,11 +113,12 @@ def change_password():
 @application.route('/confirmLockOperation', methods=['GET', 'POST'])
 def confirmLockOperation():
     content = json.loads(request.data)
+    data = content['data']
 
-    add_log(content['content'], content['username'])
+    add_log(data, content['username'])
 
     users = []
-    lock = Locks.query.get(content['lockId'])
+    lock = Locks.query.get(data['lockId'])
     operator = Users.query.get(content['username'])
 
     push_service = FCMNotification(api_key='AAAASi2VHpQ:APA91bGqzWABHfFOtzeuwc1AvIjGDCtXS90JkEErLxICILPrx81ScnzZv_AhE7um20rzOYTe28Hkhy_cF3Xj5ZqxucVaYRwkDGFIiUO3_RRbvfsr1kwsZDHdzZZJTCiPpu9whij3Puoo')
@@ -127,7 +128,7 @@ def confirmLockOperation():
     message_body = lock.alias + ' has been ' + content['operation'] + 'ed!'
     push_service.notify_multiple_devices(registration_ids=operator.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
 
-    if content['content']['userType'] == 'owner':
+    if data['userType'] == 'owner':
         if content['username'] != lock.username:
             users.append(lock.username)
 
@@ -140,7 +141,7 @@ def confirmLockOperation():
             message_body = lock.alias + ' has been ' + content['operation'] + 'ed by ' + content['username']
             push_service.notify_multiple_devices(registration_ids=row.appIds, message_title=message_title, message_body=message_body, message_icon=message_icon, low_priority=False)
 
-    if content['content']['userType'] == 'guest':
+    if data['userType'] == 'guest':
         users.append(lock.username)
 
         for rec in lock.acl:
@@ -550,7 +551,7 @@ def lock_operations():
         pl = {
             'operation': content['operation'],
             'username': checkToken['username'],
-            'content': content
+            'data': content
         }
         response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
 
@@ -589,12 +590,11 @@ def lock_operations_guest():
         if content['operation'] not in ['lock', 'unlock']:
             return 'Invalid operation'
 
-        acl_row = Acl.query.get((content['lockId'], checkToken['username']))
-        content['userType'] = acl_row.userType
+        content['userType'] = acl.userType
         pl = {
             'operation': content['operation'],
             'username': checkToken['username'],
-            'content': content
+            'data': content
         }
         response = iotcore.publish(topic='access/operationRequest' + content['lockId'], qos=1, payload=json.dumps(pl))
 
@@ -867,6 +867,7 @@ def upload_image():
 
 def add_log(content, username):
     try:
+        if not content['images']: content['images'] = None
         lg = Logs(content['lockId'], username, content['operation'], content['userType'], content['images'])
         db.session.add(lg)
         db.session.commit()
