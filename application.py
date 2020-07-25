@@ -113,11 +113,13 @@ def change_password():
 @application.route('/confirmLockOperation', methods=['GET', 'POST'])
 def confirmLockOperation():
     content = json.loads(request.data)
+    print(content)
     data = content['data']
 
     add_log(data, content['username'])
 
     users = []
+    print(data)
     lock = Locks.query.get(data['lockId'])
     operator = Users.query.get(content['username'])
 
@@ -867,7 +869,8 @@ def upload_image():
 
 def add_log(content, username):
     try:
-        if not content['images']: content['images'] = None
+        if not content['images']:
+            content['images'] = None
         lg = Logs(content['lockId'], username, content['operation'], content['userType'], content['images'])
         db.session.add(lg)
         db.session.commit()
